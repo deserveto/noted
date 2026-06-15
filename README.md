@@ -38,18 +38,6 @@ follows the product requirements in
 - MVVM architecture with Provider state management.
 - Android release APK support.
 
-## Screens And Style
-
-Noted uses a calm academic visual direction inspired by the reference designs in
-`docs/`: an off-white background, compact search controls, rounded category
-chips, pastel note cards, and a dark floating add button.
-
-| Reference | Preview |
-| --- | --- |
-| Notes layout | <img src="docs/1.webp" alt="Noted reference 1" width="220" /> |
-| Detail and editing flow | <img src="docs/2.webp" alt="Noted reference 2" width="220" /> |
-| Profile and calm surfaces | <img src="docs/3.webp" alt="Noted reference 3" width="220" /> |
-
 ## Tech Stack
 
 | Area | Technology |
