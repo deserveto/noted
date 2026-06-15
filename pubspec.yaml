@@ -1,0 +1,30 @@
+name: noted
+description: "Noted is a Flutter study notes app for students."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cloud_firestore: ^6.5.0
+  firebase_auth: ^6.5.2
+  firebase_core: ^4.10.0
+  intl: ^0.20.2
+  provider: ^6.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - docs/Logo.png
+    - docs/1.webp
+    - docs/2.webp
+    - docs/3.webp

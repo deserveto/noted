@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "106507286538",
+    "project_id": "superheromood-54691",
+    "storage_bucket": "superheromood-54691.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:106507286538:android:df35eaf526f31c75abc7f3",
+        "android_client_info": {
+          "package_name": "com.noted.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxFHECByrLidvUF9GBVqXPRyJy684TPsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:106507286538:android:ad2bce1a95e53e4cabc7f3",
+        "android_client_info": {
+          "package_name": "com.sangh.superheroapi.superheromood"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxFHECByrLidvUF9GBVqXPRyJy684TPsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,26 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "buildConfigurations": {
+          ".": {
+            "projectId": "superheromood-54691",
+            "appId": "1:106507286538:android:df35eaf526f31c75abc7f3",
+            "fileOutput": "android/app/google-services.json"
+          }
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "superheromood-54691",
+          "configurations": {
+            "android": "1:106507286538:android:df35eaf526f31c75abc7f3"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isNoteOwner() {
+      return signedIn() && request.auth.uid == resource.data.userId;
+    }
+
+    function isSharedReader() {
+      return signedIn()
+        && 'sharedWithUserIds' in resource.data
+        && request.auth.uid in resource.data.sharedWithUserIds;
+    }
+
+    function isPendingSharedReader() {
+      return signedIn()
+        && 'pendingSharedWithUserIds' in resource.data
+        && request.auth.uid in resource.data.pendingSharedWithUserIds;
+    }
+
+    function requestInvolvesUser() {
+      return signedIn()
+        && (request.auth.uid == resource.data.fromUserId
+          || request.auth.uid == resource.data.toUserId);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    match /notes/{noteId} {
+      allow read: if isNoteOwner() || isSharedReader() || isPendingSharedReader();
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isNoteOwner() || (
+        isPendingSharedReader() &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.title == resource.data.title &&
+        request.resource.data.content == resource.data.content &&
+        request.resource.data.category == resource.data.category &&
+        request.resource.data.isFavorite == resource.data.isFavorite &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (!('ownerName' in resource.data) || request.resource.data.ownerName == resource.data.ownerName) &&
+        (!('ownerEmail' in resource.data) || request.resource.data.ownerEmail == resource.data.ownerEmail)
+      );
+      allow delete: if isNoteOwner();
+    }
+
+    match /connectionRequests/{connectionId} {
+      allow read: if requestInvolvesUser();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.fromUserId
+        && request.resource.data.status == 'pending';
+      allow update: if requestInvolvesUser();
+      allow delete: if requestInvolvesUser();
+    }
+  }
+}
