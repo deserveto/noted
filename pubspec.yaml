@@ -25,6 +25,3 @@ flutter:
   uses-material-design: true
   assets:
     - docs/Logo.png
-    - docs/1.webp
-    - docs/2.webp
-    - docs/3.webp
