@@ -163,5 +163,5 @@ Recent verification during development included:
 ## Author
 
 Created for the Mobile Application Development final project at Telkom
-University Jakarta.
+University Jakarta, Halimun.
 
