@@ -165,3 +165,4 @@ Recent verification during development included:
 Created for the Mobile Application Development final project at Telkom
 University Jakarta, Halimun.
 
+GitHub: [@mazdiaz](https://github.com/mazdiaz)
