@@ -24,5 +24,8 @@ android/app/release/
 .DS_Store
 Thumbs.db
 
+# Local tooling (machine-specific, do not commit)
+run-emulator.cmd
+
 # Design reference images
 docs/*.webp

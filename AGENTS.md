@@ -1,97 +1,72 @@
 # Noted Project Context
 
-## Product Source Of Truth
+## Project Overview
 
-- Primary requirements live in `docs/Noted_PRD_dan_Kerangka_Desain.md`.
-- The app name is `Noted`, even though the PRD draft uses `StudyNote`.
-- Design references are `docs/1.webp`, `docs/2.webp`, and `docs/3.webp`.
-- Logo asset is `docs/Logo.png`.
+Noted is a Flutter mobile note-taking app for personal and business use: capture notes, organize them by category, mark favorites, connect with colleagues and collaborators by email, and share note copies with accepted connections. Built with MVVM architecture and Provider state management, backed by Firebase Authentication and Cloud Firestore.
 
-## Build Goal
+Verified environment: Flutter 3.41.6 (stable) / Dart 3.11.4 on Windows. `flutter` and `dart` are on `PATH`.
 
-Build a Flutter mobile note-taking app for students with:
+The repository is a git repo (remote: `https://github.com/deserveto/noted.git`, `main` branch).
 
-- Sign up, sign in, active user display, profile, and logout.
-- Firebase Authentication for user accounts.
-- Cloud Firestore for network database persistence.
-- CRUD notes with title, content, category, favorite status, created date, and updated date.
-- Search by title or content.
-- Category filtering.
-- Favorites page.
-- Dashboard/home summary.
-- MVVM architecture with Provider state management.
+## Current Features (verified in code)
 
-## Architecture Expectations
+- **Auth**: email/password sign up, sign in, logout; active-user display via `AuthViewModel` + `AuthRepository` (Firebase Auth).
+- **Notes CRUD**: title, Markdown content, category, favorite flag, `createdAt`/`updatedAt`; persisted in Cloud Firestore via `NoteRepository`.
+- **Markdown support**: bold/italic/underline/bullet/numbered formatting via `utils/markdown_formatter.dart` + `widgets/formatting_toolbar.dart` in the editor, rendered through `widgets/markdown_content.dart`.
+- **Search**: by title or content (`NoteViewModel.searchQuery`).
+- **Category filtering**: dynamic category chips derived from user notes (`widgets/category_chips.dart`).
+- **Favorites**: pinned notes page + dashboard counts.
+- **Dashboard/home summary**: note and favorite stats (`widgets/stat_card.dart`).
+- **Connections**: send requests by email, accept/reject, incoming/outgoing pending lists (`ConnectionModel` with `pending/accepted/rejected` status).
+- **Note sharing**: notes carry `sharedWithUserIds` / `pendingSharedWithUserIds` — sharing note copies with accepted connections.
+- **Theme switching**: light/dark via `ThemeViewModel` and `ThemeMode` in `app.dart`; full dark palette in `AppColors`.
+- **Navigation**: 5-destination bottom `NavigationBar` in `main_shell.dart`: Home, Notes, Favorites, Connections, Profile (keep-all `IndexedStack`).
 
-Use this structure unless a later requirement clearly supersedes it:
+## Architecture
+
+Actual `lib/` structure (follow it; keep responsibilities clear):
 
 ```text
 lib/
-  main.dart
-  app.dart
-  models/
-  repositories/
+  main.dart          # Firebase init + MultiProvider wiring (viewmodels bound to auth user)
+  app.dart           # MaterialApp, named routes, AuthGate
+  firebase_options.dart
+  models/            # plain data + Firestore mapping: note_model, user_model, connection_model
+  repositories/      # Firestore/Firebase Auth access: auth_repository, note_repository, connection_repository
   services/
-  utils/
-  viewmodels/
-  views/
-  widgets/
+  utils/             # app_colors, app_theme, app_routes, validators, markdown_formatter
+  viewmodels/        # Provider ChangeNotifiers: auth, note, connection, theme
+  views/             # screens: welcome, sign_in/up, main_shell, home, notes, favorites, connections, profile, add_edit_note, note_detail
+  widgets/           # note_card, category_chips, markdown_content, formatting_toolbar, custom_button/text_field, empty_state, stat_card
 ```
 
-Keep responsibilities clear:
+Key patterns:
 
-- `models/`: plain app data objects and Firestore mapping.
-- `repositories/`: Firebase Authentication and Firestore access.
-- `viewmodels/`: Provider-backed UI state and actions.
-- `views/`: screens/pages.
-- `widgets/`: reusable UI pieces.
-- `utils/`: constants, routes, theme, validation helpers.
+- `main.dart` wires `ChangeNotifierProxyProvider`s so `NoteViewModel`/`ConnectionViewModel` rebind to the current auth user.
+- Routes are named constants in `utils/app_routes.dart`; `AuthGate` in `app.dart` decides Welcome vs. MainShell.
+- Repositories construct viewmodels directly (no DI container). Don't introduce heavyweight frameworks.
+- Colors live in `utils/app_colors.dart` as `const`s; both light and dark palettes are defined there.
 
 ## Design Direction
 
-The visual style should follow the reference screenshots:
+- Minimal, soft academic notes app: off-white background, compact rounded search field and category chips, colored note cards, dark floating circular add button, bottom-sheet category/edit affordances, calm Roboto typography.
+- Base palette: Background `#F8F7F2`, Primary `#6A9C89`, Secondary `#FFD66B`, Text `#2F2F2F`, Card `#FFFFFF`, Error/Delete `#E57373`
+- Note card colors are cycled from `AppColors.noteColors` / `darkNoteColors` per note index via `noteColorFor(Brightness, int)`.
+- Keep light/dark in sync: any color change needs both variants.
+- Detailed design tokens and further guidelines live in `DESIGN.md` at the repo root — consult it before UI work.
 
-- Minimal, soft academic notes app.
-- Off-white background.
-- Compact rounded search and category chips.
-- Colored note tiles/cards in a staggered or grid-like notes layout where practical.
-- Dark floating add button.
-- Bottom-sheet style category and edit affordances.
-- Calm typography, readable spacing, and simple navigation.
+## Stale or Removed References
 
-Use the PRD palette as a base:
-
-- Background: `#F8F7F2`
-- Primary: `#6A9C89`
-- Secondary: `#FFD66B`
-- Main text: `#2F2F2F`
-- Card: `#FFFFFF`
-- Delete/error: `#E57373`
-
-## Agent Roles Requested
-
-The user requested subagents for:
-
-1. Core + Firebase Agent
-2. Frontend/UI Agent
-3. Design System + QA Agent
-
-If subagents are used, keep file ownership disjoint where possible and do not revert another agent's changes.
-
-## Current Environment Notes
-
-- This workspace initially contained only `docs/`.
-- The workspace was not a git repository when implementation started.
-- `flutter` and `dart` were not available on `PATH` during initial setup checks.
-- Verification may be limited until Flutter is configured in the active shell.
+- `docs/` now contains **only `docs/Logo.png`** (referenced by `pubspec.yaml` and `README.md`). The PRD, design-reference screenshots, `superpowers/`, and `IMPLEMENTATION_LOG.md` were **deleted** — do not cite them or expect them to exist.
+- The app is branded for **personal and business usage** (not student-only). Keep this framing when writing copy, examples, or new screens.
 
 ## Verification Expectations
 
-Before claiming completion, run whatever is available in the current environment:
+Flutter toolchain is available. Before claiming completion, run from the repo root:
 
 - `flutter pub get`
-- `flutter analyze`
-- `flutter test`
-- `flutter build apk`
+- `flutter analyze` — must be clean (verified 2026-10-26: 0 issues)
+- `flutter test` — tests live in `test/` (note_model, connection_viewmodel, formatting_toolbar, feature_upgrade tests)
+- `flutter build apk` for full build verification, if appropriate
 
-If Flutter is unavailable, document that blocker in `docs/IMPLEMENTATION_LOG.md` with the exact command and failure.
+Report exact commands and failures if any step fails.

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>A soft, student-focused Flutter notes app with Firebase, MVVM, and Provider.</strong>
+  <strong>A calm, cross-audience Flutter notes app for personal and business use — with Firebase, MVVM, and Provider.</strong>
 </p>
 
 <p align="center">
@@ -16,13 +16,14 @@
 
 ## Overview
 
-Noted is a mobile note-taking app designed for students who need a clean place
-to capture study material, organize notes by category, mark important notes as
-favorites, and share note copies with accepted connections.
+Noted is a mobile note-taking app for anyone who needs a clean, organized place
+to capture information — professionals taking meeting notes and action items,
+small teams saving reference material, and individuals managing daily to-dos,
+research, and ideas.
 
-The app was built for the Mobile Application Development final project and
-follows the product requirements in
-[`docs/Noted_PRD_dan_Kerangka_Desain.md`](docs/Noted_PRD_dan_Kerangka_Desain.md).
+Users can organize notes by category, search instantly, mark important notes as
+favorites, and share note copies with colleagues and collaborators through the
+connections flow. Firebase synchronization keeps notes available on the go.
 
 ## Highlights
 
@@ -31,7 +32,7 @@ follows the product requirements in
 - Complete notes CRUD: create, read, update, delete, favorite, category, dates.
 - Search by note title or content.
 - Category filtering and a dedicated favorites page.
-- Dashboard summary for recent notes and student-friendly quick stats.
+- Dashboard summary for recent notes and quick activity stats.
 - Connections flow with request, accept, reject, remove, and note-copy sharing.
 - Rich note editing helpers for bold, italic, underline, bullets, and numbering.
 - Light and dark theme support.
@@ -138,7 +139,7 @@ The release APK is generated at:
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-For submission, the APK artifact is renamed to:
+The APK artifact is published as:
 
 ```text
 Noted.apk
@@ -146,7 +147,7 @@ Noted.apk
 
 ## Release
 
-The Android APK should be published through GitHub Releases as `Noted.apk`.
+The Android APK is published through GitHub Releases as `Noted.apk`.
 Install it on an Android device, then test sign up, sign in, note CRUD, search,
 category filtering, favorites, profile/logout, and sharing.
 
@@ -160,8 +161,12 @@ Recent verification during development included:
 - `flutter build apk`
 - APK signature validation with Android `apksigner`
 
+## Design System
+
+Detailed design tokens, component specs, and UI guidelines live in
+[`DESIGN.md`](DESIGN.md). Project context for AI agents lives in
+[`AGENTS.md`](AGENTS.md).
+
 ## Author
 
-Created for the Mobile Application Development final project at Telkom
-University Jakarta, Halimun.
-
+Created and maintained by [Fikri Tri Wibowo](https://github.com/deserveto).
