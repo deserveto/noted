@@ -98,6 +98,22 @@ class ConnectionViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> invite(String email) async {
+    final user = _boundUser;
+    if (user == null) return false;
+    return _runAction(() async {
+      try {
+        await _repository.sendRequest(fromUser: user, targetEmail: email);
+      } on ConnectionException catch (error) {
+        if (error.code != 'not-found') rethrow;
+        await _repository.inviteByEmail(email);
+      }
+    });
+  }
+
+  Future<bool> resend(ConnectionModel connection) =>
+      _runAction(() => _repository.resendRequest(connection.connectionId));
+
   Future<bool> accept(ConnectionModel connection) {
     return _runAction(() => _repository.acceptRequest(connection.connectionId));
   }
@@ -109,6 +125,12 @@ class ConnectionViewModel extends ChangeNotifier {
   Future<bool> removeConnection(ConnectionModel connection) {
     return _runAction(
         () => _repository.removeConnection(connection.connectionId));
+  }
+
+  void retry() {
+    final user = _boundUser;
+    _boundUser = null;
+    bindUser(user);
   }
 
   void clearError() {

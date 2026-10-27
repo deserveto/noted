@@ -1,10 +1,18 @@
+import java.util.Properties
+
 plugins {
     id "com.android.application"
-    // START: FlutterFire Configuration
-    id 'com.google.gms.google-services'
-    // END: FlutterFire Configuration
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+}
+
+def uploadSigning = new Properties()
+def uploadSigningFile = rootProject.file('key.properties')
+if (uploadSigningFile.exists()) {
+    uploadSigningFile.withInputStream { uploadSigning.load(it) }
+}
+if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') } && !uploadSigningFile.exists()) {
+    throw new GradleException('Production signing is missing. Configure the ignored android/key.properties file; see docs/SUPABASE_SETUP_AND_CUTOVER.md.')
 }
 
 android {
@@ -31,10 +39,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile = file("${System.properties['user.home']}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            if (uploadSigningFile.exists()) {
+                storeFile = file(uploadSigning.getProperty('storeFile'))
+                storePassword = uploadSigning.getProperty('storePassword')
+                keyAlias = uploadSigning.getProperty('keyAlias')
+                keyPassword = uploadSigning.getProperty('keyPassword')
+            }
         }
     }
 

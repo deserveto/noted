@@ -1,172 +1,64 @@
 # Noted
 
-<p align="center">
-  <img src="docs/Logo.png" alt="Noted logo" width="120" />
-</p>
+Combined UI/backend PR review: [Full change review](docs/FULL_CHANGE_REVIEW.md). Historical migration fixes: [Supabase remediation report](docs/SUPABASE_REMEDIATION_REPORT.md).
 
-<p align="center">
-  <strong>A calm, cross-audience Flutter notes app for personal and business use — with Firebase, MVVM, and Provider.</strong>
-</p>
+A calm Flutter notes app for personal and business use, built with MVVM/Provider and backed by Supabase Auth, PostgreSQL (with Row Level Security), Supabase Realtime, Private Supabase Storage, and Supabase Edge Functions.
 
-<p align="center">
-  <img alt="Flutter" src="https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white" />
-  <img alt="Firebase" src="https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" />
-  <img alt="Architecture" src="https://img.shields.io/badge/Architecture-MVVM-6A9C89?style=for-the-badge" />
-</p>
+![Noted logo](docs/Logo.png)
 
-## Overview
+The revised interface follows the supplied prototype: onboarding, a useful monthly calendar, a searchable library with Favorites/Live filters, a visual rich-text editor, collaborative notes, AI, connections, profile insights and synced settings. The original Noted logo remains.
 
-Noted is a mobile note-taking app for anyone who needs a clean, organized place
-to capture information — professionals taking meeting notes and action items,
-small teams saving reference material, and individuals managing daily to-dos,
-research, and ideas.
+## Run and verify
 
-Users can organize notes by category, search instantly, mark important notes as
-favorites, and share note copies with colleagues and collaborators through the
-connections flow. Firebase synchronization keeps notes available on the go.
-
-## Highlights
-
-- Firebase Authentication for sign up, sign in, active user display, and logout.
-- Cloud Firestore persistence for notes, users, and connection requests.
-- Complete notes CRUD: create, read, update, delete, favorite, category, dates.
-- Search by note title or content.
-- Category filtering and a dedicated favorites page.
-- Dashboard summary for recent notes and quick activity stats.
-- Connections flow with request, accept, reject, remove, and note-copy sharing.
-- Rich note editing helpers for bold, italic, underline, bullets, and numbering.
-- Light and dark theme support.
-- MVVM architecture with Provider state management.
-- Android release APK support.
-
-## Tech Stack
-
-| Area | Technology |
-| --- | --- |
-| Framework | Flutter |
-| Language | Dart |
-| Authentication | Firebase Authentication |
-| Database | Cloud Firestore |
-| State Management | Provider |
-| Architecture | MVVM |
-| Platform Target | Android |
-
-## Project Structure
-
-```text
-lib/
-  main.dart
-  app.dart
-  models/          Data objects and Firestore mapping
-  repositories/    Firebase Auth and Firestore access
-  services/        Firebase initialization helpers
-  utils/           Theme, colors, routes, validation, formatting
-  viewmodels/      Provider-backed UI state and actions
-  views/           App screens and pages
-  widgets/         Reusable UI components
-```
-
-## Core Features
-
-### Authentication
-
-Users can register, sign in, stay connected to their active account state, view
-profile details, and log out safely.
-
-### Notes
-
-Each note stores a title, content, category, favorite status, created date, and
-updated date. Users can search, filter, favorite, edit, and delete their notes.
-
-### Connections And Sharing
-
-Users can send connection requests by email. Accepted connections can receive a
-copy of a shared note, so the receiver owns an independent editable version.
-
-### Theme
-
-The profile page includes a light/dark mode toggle, with shared widgets tuned for
-readable contrast across both themes.
-
-## Firebase
-
-This project is configured for Android Firebase usage through:
-
-- [`lib/firebase_options.dart`](lib/firebase_options.dart)
-- [`android/app/google-services.json`](android/app/google-services.json)
-- [`firestore.rules`](firestore.rules)
-- [`firebase.json`](firebase.json)
-
-Before running with your own Firebase project, make sure Email/Password sign-in
-is enabled in Firebase Authentication and Firestore rules are deployed.
-
-## Getting Started
-
-### Prerequisites
-
-- Flutter SDK
-- Android SDK
-- A Firebase project with Authentication and Firestore enabled
-
-### Install Dependencies
+Verified development toolchain: Flutter 3.41.6 / Dart 3.11.4 and Node.js 22+ on Windows. Android uses Java 17, Android Gradle Plugin 8.13.2, Gradle 8.13 and Kotlin 2.3.10.
 
 ```powershell
+# 1. Run Supabase SQL/RLS, Edge Function & migration tooling tests (89 tests)
+Set-Location tools/migration
+npm test
+Set-Location ../..
+
+# 2. Configure local public Supabase client values (if not already present)
+if (-not (Test-Path .env.supabase.json)) {
+  Copy-Item .env.supabase.example.json .env.supabase.json
+}
+
+# 3. Run Flutter verification (115 tests) & build release APK
 flutter pub get
-```
-
-### Run The App
-
-```powershell
-flutter run
-```
-
-### Analyze And Test
-
-```powershell
 flutter analyze
 flutter test
+flutter run --dart-define-from-file=.env.supabase.json
+flutter build apk --release --dart-define-from-file=.env.supabase.json
 ```
 
-### Build Release APK
+Notes use versioned Quill rich documents; legacy Markdown remains readable and imports without destructive bulk rewriting. Realtime collaborative saves rebase Quill Delta operations via atomic revision-checked RPCs (`commit_note_revision`, including calendar-dated creation timestamps) and preserve competing metadata or offline conflict copies for user review. Offline edits queue in a per-account local outbox (`OfflineNoteStore`) and replay on reconnect. Copy sharing and duplication copy private media to independent Storage paths (`noted-media://note-media/...`) resolved via short-lived signed URLs.
+
+## Supabase backend configuration
+
+Noted's Supabase backend (Auth, PostgreSQL schema + RLS + RPCs, Private Storage buckets `avatars` and `note-media`, and all 5 Edge Functions) is defined in `supabase/` and verified end-to-end against a live Supabase project. For new environments or redeployments, follow [docs/SUPABASE_SETUP_AND_CUTOVER.md](docs/SUPABASE_SETUP_AND_CUTOVER.md) and architecture details in [docs/SUPABASE_MIGRATION_PLAN.md](docs/SUPABASE_MIGRATION_PLAN.md):
 
 ```powershell
-flutter build apk
+if (-not (Test-Path supabase/.env)) {
+  Copy-Item supabase/.env.example supabase/.env
+}
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push
+npx supabase secrets set --env-file supabase/.env --project-ref <your-project-ref>
+npx supabase functions deploy noted-ai --no-verify-jwt --project-ref <your-project-ref>
+npx supabase functions deploy note-sharing --no-verify-jwt --project-ref <your-project-ref>
+npx supabase functions deploy connections --no-verify-jwt --project-ref <your-project-ref>
+npx supabase functions deploy account --no-verify-jwt --project-ref <your-project-ref>
+npx supabase functions deploy scheduled-maintenance --no-verify-jwt --project-ref <your-project-ref>
 ```
 
-The release APK is generated at:
+The AI service uses OpenRouter (`AI_BASE_URL=https://openrouter.ai/api/v1`, `AI_MODEL=openrouter/free`); `AI_API_KEY`, `RESEND_API_KEY`, and `CRON_SECRET` live exclusively in Supabase Edge Function secrets. For outbound Resend emails (invitations, activity notifications, Sunday recaps), set `NOTED_EMAIL_FROM` to an address on a domain verified in [Resend Domains](https://resend.com/domains) (or `"Noted <onboarding@resend.dev>"` when testing delivery to your own Resend account email) and push updated secrets with `npx supabase secrets set --env-file supabase/.env --project-ref <your-project-ref>`. Until a verified sender domain is configured, in-app connection requests and notifications continue to work cleanly without failing requests. To switch AI model or OpenAI-compatible provider, update `AI_MODEL` / `AI_BASE_URL` / `AI_API_KEY` via `npx supabase secrets set` without rebuilding Flutter. Optional anonymous usage analytics (`AnalyticsService`) are strictly disabled by default and gated on user consent in Settings. Optional feedback email is configured with `--dart-define=NOTED_FEEDBACK_EMAIL=...`; the default opens the repository's issue form.
 
-```text
-build/app/outputs/flutter-apk/app-release.apk
-```
+## Optional migration from Firebase
 
-The APK artifact is published as:
+Fresh Supabase deployments do **not** need to run the Firebase migration scripts. If you later choose to import historical users, notes, connections, chats, and media from the legacy Firebase project, repeatable read-only export, dry-run/live import, 11-point validation, and rollback scripts live in [tools/migration/README.md](tools/migration/README.md). Legacy Firebase rules/functions in `functions/`, `firestore.rules`, `storage.rules`, and `firebase.json` are retained read-only solely as historical audit reference; the Flutter application has zero Firebase dependencies.
 
-```text
-Noted.apk
-```
+## Implementation and acceptance notes
 
-## Release
+See [Supabase setup & cutover](docs/SUPABASE_SETUP_AND_CUTOVER.md), [migration plan](docs/SUPABASE_MIGRATION_PLAN.md), [design system](DESIGN.md), [UI rebuild plan](docs/UI_REBUILD_PLAN.md), and [UI rebuild report](docs/UI_REBUILD_REPORT.md). Responsive/golden fixtures in `test/` use test-only data.
 
-The Android APK is published through GitHub Releases as `Noted.apk`.
-Install it on an Android device, then test sign up, sign in, note CRUD, search,
-category filtering, favorites, profile/logout, and sharing.
-
-## Verification
-
-Recent verification during development included:
-
-- `flutter pub get`
-- `flutter analyze`
-- `flutter test`
-- `flutter build apk`
-- APK signature validation with Android `apksigner`
-
-## Design System
-
-Detailed design tokens, component specs, and UI guidelines live in
-[`DESIGN.md`](DESIGN.md). Project context for AI agents lives in
-[`AGENTS.md`](AGENTS.md).
-
-## Author
-
-Created and maintained by [Fikri Tri Wibowo](https://github.com/deserveto).
+Live backend checks have verified Supabase Auth sign-up, profile/settings triggers & RPCs, `commit_note_revision` CAS concurrency, private Storage uploads & signed URLs, independent media duplication (`note-sharing`), live OpenRouter responses (`noted-ai`), `scheduled-maintenance`, and full account/media deletion (`account`). Remaining physical-device acceptance checks are: concurrent editing across two physical devices, hardware voice recording/playback, camera/gallery upload, biometric/device-PIN lock, external deep-link taps (`noted://app/notes/<id>` and `noted://app/auth-callback`), and verified-domain Resend email delivery. The spellcheck preference controls note titles; Quill's current public editor API does not provide a body spellcheck switch. AI responses are validated after generation rather than streamed token by token. Configure your release keystore before store distribution.

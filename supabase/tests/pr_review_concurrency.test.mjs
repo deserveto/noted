@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createSupabaseTestDb} from './pglite_supabase_harness.mjs';
+const A='11111111-1111-4111-8111-111111111111', B='22222222-2222-4222-8222-222222222222';
+test('duplicate commit rejects revoked or stale source and permits current member draft', async()=>{const c=await createSupabaseTestDb(); try {
+ await c.createAuthUser({id:A,email:'a@example.com'}); await c.createAuthUser({id:B,email:'b@example.com'});
+ await c.asUser(A,t=>t.query("insert into notes(note_id,user_id) values('n',$1)",[A]));
+ await c.asService(t=>t.query("update notes set live_member_ids=array[$1]::uuid[],live_roles=jsonb_build_object($1::text,'edit') where note_id='n'",[B]));
+ const copy=JSON.stringify({note_id:'copy',title:'draft',content:'draft',category:'Personal',color:'blue',attachments:[]});
+ await assert.rejects(()=>c.asService(t=>t.query("select audit_duplicate_note('n',$1,99,$2::jsonb)",[B,copy])));
+ await c.asService(t=>t.query("update notes set live_member_ids='{}',live_roles='{}' where note_id='n'"));
+ await assert.rejects(()=>c.asService(t=>t.query("select audit_duplicate_note('n',$1,0,$2::jsonb)",[B,copy])));
+ await c.asService(t=>t.query("update notes set live_member_ids=array[$1]::uuid[],live_roles=jsonb_build_object($1::text,'edit') where note_id='n'",[B]));
+ await assert.rejects(()=>c.asUser(B,t=>t.query("select audit_duplicate_note('n',$1,0,$2::jsonb)",[B,copy])));
+ await c.asService(t=>t.query("select audit_duplicate_note('n',$1,0,$2::jsonb)",[B,copy]));
+ assert.equal((await c.asService(t=>t.query("select content from notes where note_id='copy'"))).rows[0].content,'draft');
+ }finally{await c.db.close()}});
+test('clear history cancels pending request atomically and blocks later commit',async()=>{const c=await createSupabaseTestDb();try{
+ await c.createAuthUser({id:A,email:'a@example.com'});
+ await c.asService(t=>t.query("insert into ai_requests(user_id,request_id,status) values($1,'r','running')",[A]));
+ await assert.rejects(()=>c.asUser(A,t=>t.query("select audit_clear_ai_history($1)",[A])));
+ await c.asService(t=>t.query("select audit_clear_ai_history($1)",[A]));
+ await assert.rejects(()=>c.asService(t=>t.query("select audit_commit_ai_exchange($1,'r',array[]::text[],'chat','Title','{}','question','{\"blocks\":[],\"sources\":[],\"intent\":\"answer\"}',true)",[A])));
+ assert.equal((await c.asService(t=>t.query("select count(*)::int as n from ai_chats where user_id=$1",[A]))).rows[0].n,0);
+ await c.asService(t=>t.query("insert into ai_requests(user_id,request_id,status) values($1,'r2','running')",[A]));
+ await c.asService(t=>t.query("select audit_commit_ai_exchange($1,'r2',array[]::text[],'chat','Title','{}','question','{\"blocks\":[],\"sources\":[],\"intent\":\"answer\"}',true)",[A]));
+ assert.equal((await c.asService(t=>t.query("select status from ai_requests where user_id=$1 and request_id='r2'",[A]))).rows[0].status,'completed');
+ await c.asService(t=>t.query("select audit_clear_ai_history($1)",[A]));
+ assert.equal((await c.asService(t=>t.query("select count(*)::int as n from ai_chats where user_id=$1",[A]))).rows[0].n,0);
+ }finally{await c.db.close()}});
+import {handleNoteSharingRequest} from '../functions/note-sharing/handler.ts';
+test('duplicate rechecks revision after copying and cleans copied media on denial',async()=>{
+ const removed=[]; let checked;
+ const note={note_id:'n',user_id:A,title:'Secret',content:'',category:'Personal',color:'blue',revision:3,live_member_ids:[B],attachments:[{path:`users/${A}/notes/n/img`,url:`noted-media://note-media/users/${A}/notes/n/img`,type:'image',name:'img'}]};
+ const store={checkRateLimit:async()=>true,getNote:async()=>note,reserveCopyCleanup:async()=>{},getProfile:async()=>null,duplicateNote:async(...args)=>{checked=args;throw Error('revoked')},completeCopyCleanup:async()=>{throw Error('must not complete')}};
+ const storage={from:()=>({copy:async()=>({error:null}),remove:async paths=>{removed.push(...paths);return {error:null}}})};
+ const request=new Request('https://example.com',{method:'POST',headers:{authorization:'Bearer token','content-type':'application/json'},body:JSON.stringify({action:'duplicateNote',noteId:'n'})});
+ const result=await handleNoteSharingRequest(request,{verifyToken:async()=>({uid:B,email:'b@example.com'}),store,storage,env:{}});
+ assert.equal(result.status,500); assert.equal(checked[0],'n'); assert.equal(checked[1],B); assert.equal(checked[2],3); assert.equal(removed.length,1);
+});

@@ -1,55 +1,74 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/connection_model.dart';
 import '../models/user_model.dart';
-import '../services/firebase_service.dart';
+import '../services/supabase_service.dart';
+import 'paginated_query.dart';
 
 class ConnectionRepository {
-  ConnectionRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseService.firestore;
+  ConnectionRepository({SupabaseClient? client}) : _clientOverride = client;
 
-  final FirebaseFirestore _firestore;
+  final SupabaseClient? _clientOverride;
+
+  SupabaseClient? get _maybeClient =>
+      _clientOverride ?? SupabaseService.maybeClient;
+
+  SupabaseClient get _client => _clientOverride ?? SupabaseService.client;
 
   Stream<List<ConnectionModel>> watchConnections(String userId) {
-    final controller = StreamController<List<ConnectionModel>>();
-    var fromConnections = <ConnectionModel>[];
-    var toConnections = <ConnectionModel>[];
+    final client = _maybeClient;
+    if (client == null || userId.isEmpty) {
+      return Stream<List<ConnectionModel>>.value(const []);
+    }
 
-    void emit() {
-      final byId = <String, ConnectionModel>{};
-      for (final connection in [...fromConnections, ...toConnections]) {
-        byId[connection.connectionId] = connection;
-      }
-      final values = byId.values.toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      if (!controller.isClosed) {
-        controller.add(values);
+    late final StreamController<List<ConnectionModel>> controller;
+    RealtimeChannel? channel;
+
+    Future<void> refresh() async {
+      try {
+        final rows = await fetchAllPages((start, end) => client
+            .from('connection_requests')
+            .select()
+            .or('from_user_id.eq.$userId,to_user_id.eq.$userId')
+            .order('connection_id')
+            .range(start, end));
+
+        final values = rows
+            .map((r) => ConnectionModel.fromMap(Map<String, dynamic>.from(r)))
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+        if (!controller.isClosed) {
+          controller.add(values);
+        }
+      } catch (err) {
+        if (!controller.isClosed) {
+          controller.addError(err);
+        }
       }
     }
 
-    final fromSub = _connections
-        .where('fromUserId', isEqualTo: userId)
-        .snapshots()
-        .listen((snapshot) {
-      fromConnections =
-          snapshot.docs.map(ConnectionModel.fromDocument).toList();
-      emit();
-    }, onError: controller.addError);
-
-    final toSub = _connections
-        .where('toUserId', isEqualTo: userId)
-        .snapshots()
-        .listen((snapshot) {
-      toConnections = snapshot.docs.map(ConnectionModel.fromDocument).toList();
-      emit();
-    }, onError: controller.addError);
-
-    controller.onCancel = () async {
-      await fromSub.cancel();
-      await toSub.cancel();
-    };
+    controller = StreamController<List<ConnectionModel>>(
+      onListen: () {
+        refresh();
+        channel = client
+            .channel('connections-$userId-${identityHashCode(controller)}')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'connection_requests',
+              callback: (_) => refresh(),
+            )
+            .subscribe();
+      },
+      onCancel: () async {
+        if (channel != null) {
+          await client.removeChannel(channel!);
+        }
+      },
+    );
 
     return controller.stream;
   }
@@ -58,93 +77,161 @@ class ConnectionRepository {
     required UserModel fromUser,
     required String targetEmail,
   }) async {
-    final normalizedEmail = targetEmail.trim().toLowerCase();
-    if (normalizedEmail.isEmpty) {
-      throw const ConnectionException('Enter a connection email.');
+    try {
+      await SupabaseService.invokeFunction(
+        'connections',
+        {
+          'action': 'requestConnection',
+          'email': targetEmail.trim().toLowerCase(),
+        },
+        clientOverride: _clientOverride,
+      );
+    } on BackendFunctionException catch (error) {
+      throw ConnectionException(error.message, code: error.code);
     }
-    if (normalizedEmail == fromUser.email.trim().toLowerCase()) {
-      throw const ConnectionException('You cannot connect with yourself.');
-    }
-
-    final targetUser = await findUserByEmail(normalizedEmail);
-    if (targetUser == null) {
-      throw const ConnectionException('No user found with that email.');
-    }
-
-    final sent = await _connections
-        .where('fromUserId', isEqualTo: fromUser.uid)
-        .where('toUserId', isEqualTo: targetUser.uid)
-        .get();
-
-    final received = await _connections
-        .where('fromUserId', isEqualTo: targetUser.uid)
-        .where('toUserId', isEqualTo: fromUser.uid)
-        .get();
-
-    final allDocs = [...sent.docs, ...received.docs];
-    for (final doc in allDocs) {
-      final connection = ConnectionModel.fromDocument(doc);
-      if (connection.status != ConnectionStatus.rejected) {
-        throw const ConnectionException('A connection already exists.');
-      }
-    }
-
-    final doc = _connections.doc();
-    final now = DateTime.now();
-    final connection = ConnectionModel(
-      connectionId: doc.id,
-      fromUserId: fromUser.uid,
-      fromName: fromUser.name,
-      fromEmail: fromUser.email,
-      toUserId: targetUser.uid,
-      toName: targetUser.name,
-      toEmail: targetUser.email,
-      status: ConnectionStatus.pending,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await doc.set(connection.toMap());
   }
 
-  Future<void> acceptRequest(String connectionId) {
-    return _connections.doc(connectionId).update({
+  Future<void> inviteByEmail(String email) async {
+    try {
+      await SupabaseService.invokeFunction(
+        'connections',
+        {
+          'action': 'inviteByEmail',
+          'email': email.trim().toLowerCase(),
+        },
+        clientOverride: _clientOverride,
+      );
+    } on BackendFunctionException catch (error) {
+      throw ConnectionException(error.message, code: error.code);
+    }
+  }
+
+  Future<void> resendRequest(String connectionId) async {
+    try {
+      await SupabaseService.invokeFunction(
+        'connections',
+        {
+          'action': 'resendConnectionRequest',
+          'connectionId': connectionId,
+        },
+        clientOverride: _clientOverride,
+      );
+    } on BackendFunctionException catch (error) {
+      throw ConnectionException(error.message, code: error.code);
+    }
+  }
+
+  Future<void> acceptRequest(String connectionId) async {
+    await _client.from('connection_requests').update({
       'status': ConnectionStatus.accepted.name,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-    });
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('connection_id', connectionId);
   }
 
-  Future<void> rejectRequest(String connectionId) {
-    return _connections.doc(connectionId).update({
+  Future<void> rejectRequest(String connectionId) async {
+    await _client.from('connection_requests').update({
       'status': ConnectionStatus.rejected.name,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-    });
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('connection_id', connectionId);
   }
 
-  Future<void> removeConnection(String connectionId) {
-    return _connections.doc(connectionId).delete();
+  Future<void> removeConnection(String connectionId) async {
+    await _client
+        .from('connection_requests')
+        .delete()
+        .eq('connection_id', connectionId);
   }
 
   Future<UserModel?> findUserByEmail(String email) async {
-    final snapshot = await _firestore
-        .collection('users')
-        .where('email', isEqualTo: email.trim().toLowerCase())
-        .limit(1)
-        .get();
-    if (snapshot.docs.isEmpty) {
-      return null;
+    // Email lookup is intentionally restricted server-side via `requestConnection`
+    // to prevent client-side email enumeration.
+    return null;
+  }
+}
+
+class InvitationService {
+  InvitationService({SupabaseClient? client}) : _clientOverride = client;
+
+  final SupabaseClient? _clientOverride;
+
+  SupabaseClient? get _maybeClient =>
+      _clientOverride ?? SupabaseService.maybeClient;
+
+  Stream<List<Map<String, dynamic>>> watchInvitations(String uid) {
+    final client = _maybeClient;
+    if (client == null || uid.isEmpty) {
+      return Stream<List<Map<String, dynamic>>>.value(const []);
     }
-    return UserModel.fromMap(snapshot.docs.first.data());
+
+    late final StreamController<List<Map<String, dynamic>>> controller;
+    RealtimeChannel? channel;
+
+    Future<void> refresh() async {
+      try {
+        final rows = await fetchAllPages((start, end) => client
+            .from('user_invitations')
+            .select()
+            .eq('user_id', uid)
+            .order('sent_at', ascending: false)
+            .order('email_hash')
+            .range(start, end));
+
+        if (!controller.isClosed) {
+          controller.add(
+            rows.map((r) => Map<String, dynamic>.from(r)).toList(),
+          );
+        }
+      } catch (err) {
+        if (!controller.isClosed) {
+          controller.addError(err);
+        }
+      }
+    }
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        refresh();
+        channel = client
+            .channel('invitations-$uid-${identityHashCode(controller)}')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'user_invitations',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'user_id',
+                value: uid,
+              ),
+              callback: (_) => refresh(),
+            )
+            .subscribe();
+      },
+      onCancel: () async {
+        if (channel != null) {
+          await client.removeChannel(channel!);
+        }
+      },
+    );
+
+    return controller.stream;
   }
 
-  CollectionReference<Map<String, dynamic>> get _connections {
-    return _firestore.collection('connectionRequests');
+  Future<void> cancelInvitation(String uid, String emailHash) async {
+    final client = _maybeClient;
+    if (client == null) return;
+    await client
+        .from('user_invitations')
+        .delete()
+        .eq('user_id', uid)
+        .eq('email_hash', emailHash);
   }
 }
 
 class ConnectionException implements Exception {
-  const ConnectionException(this.message);
+  const ConnectionException(this.message, {this.code});
 
   final String message;
+  final String? code;
 
   @override
   String toString() => message;

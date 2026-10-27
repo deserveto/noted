@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 
 enum MarkdownFormat {
@@ -25,10 +27,24 @@ class MarkdownFormatter {
   static const _underlineEnd = '</u>';
 
   static String toPlainText(String input) {
+    if (input.startsWith('{"notedDocument":1,')) {
+      try {
+        final map = jsonDecode(input) as Map<String, dynamic>;
+        return (map['ops'] as List)
+            .map((op) => op['insert'] is String ? op['insert'] as String : '')
+            .join()
+            .trimRight();
+      } on FormatException {
+        return input;
+      }
+    }
     return input
         .replaceAllMapped(RegExp(r'\*\*(.*?)\*\*'), (match) => match.group(1)!)
         .replaceAllMapped(RegExp(r'_(.*?)_'), (match) => match.group(1)!)
-        .replaceAllMapped(RegExp(r'<u>(.*?)<\/u>'), (match) => match.group(1)!);
+        .replaceAllMapped(RegExp(r'<u>(.*?)<\/u>'), (match) => match.group(1)!)
+        .replaceAll(RegExp(r'</?(mark|big|small|center|right)>'), '')
+        .replaceAll(RegExp(r'^- \[[ xX]\]\s?', multiLine: true), '')
+        .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '');
   }
 
   static MarkdownEdit apply(

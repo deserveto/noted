@@ -1,0 +1,37 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function noteMember(noteId) {
+      let data = firestore.get(/databases/(default)/documents/notes/$(noteId)).data;
+      return signedIn() && (data.userId == request.auth.uid ||
+        (data.get('deletedAt', null) == null && (request.auth.uid in data.get('liveMemberIds', []) || request.auth.uid in data.get('pendingSharedWithUserIds', []))));
+    }
+    function noteEditor(noteId) {
+      let data = firestore.get(/databases/(default)/documents/notes/$(noteId)).data;
+      return signedIn() && data.get('deletedAt', null) == null && (data.userId == request.auth.uid ||
+        (request.auth.uid in data.get('liveMemberIds', []) && data.get('liveRoles', {}).get(request.auth.uid, '') == 'edit'));
+    }
+    match /users/{uid}/avatar.jpg {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid &&
+        (request.resource == null || (request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*')));
+    }
+    match /users/{uid}/avatars/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid &&
+        (request.resource == null || (request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*')));
+    }
+    match /users/{uid}/notes/{noteId}/{file} {
+      allow read: if noteMember(noteId);
+      allow write: if signedIn() && request.auth.uid == uid && noteEditor(noteId) &&
+        (request.resource == null || (request.resource.size < 30 * 1024 * 1024 && request.resource.contentType.matches('(image|audio)/.*')));
+    }
+    // Compatibility for clients using notes/{noteId}/{uid}/file.
+    match /notes/{noteId}/{uid}/{file} {
+      allow read: if noteMember(noteId);
+      allow write: if signedIn() && request.auth.uid == uid && noteEditor(noteId) &&
+        (request.resource == null || (request.resource.size < 30 * 1024 * 1024 && request.resource.contentType.matches('(image|audio)/.*')));
+    }
+  }
+}
