@@ -1,67 +1,105 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function member(data) {
+      return signedIn() && (data.userId == request.auth.uid ||
+        (data.deletedAt == null && request.auth.uid in data.get('liveMemberIds', [])));
     }
-
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
+    function noteReader(data) {
+      return member(data) || (signedIn() && data.deletedAt == null && request.auth.uid in data.get('pendingSharedWithUserIds', []));
     }
-
-    function isNoteOwner() {
-      return signedIn() && request.auth.uid == resource.data.userId;
+    function editable(data) {
+      return signedIn() && (data.userId == request.auth.uid ||
+        (request.auth.uid in data.get('liveMemberIds', []) &&
+         data.get('liveRoles', {}).get(request.auth.uid, '') == 'edit'));
     }
-
-    function isSharedReader() {
-      return signedIn()
-        && 'sharedWithUserIds' in resource.data
-        && request.auth.uid in resource.data.sharedWithUserIds;
+    function noteValid(data) {
+      return data.userId is string && data.title is string && data.content is string &&
+        data.title.size() <= 1000 && data.content.size() <= 1000000 &&
+        data.category is string && data.isFavorite is bool &&
+        data.get('color', 'blue') in ['blue', 'pink', 'mint', 'yellow', 'peach', 'lav'] &&
+        data.get('liveMemberIds', []) is list && data.get('liveRoles', {}) is map &&
+        data.get('revision', 0) is int && data.createdAt is timestamp && data.updatedAt is timestamp &&
+        (data.get('deletedAt', null) == null || data.deletedAt is timestamp);
     }
-
-    function isPendingSharedReader() {
-      return signedIn()
-        && 'pendingSharedWithUserIds' in resource.data
-        && request.auth.uid in resource.data.pendingSharedWithUserIds;
-    }
-
-    function requestInvolvesUser() {
-      return signedIn()
-        && (request.auth.uid == resource.data.fromUserId
-          || request.auth.uid == resource.data.toUserId);
-    }
-
-    match /users/{userId} {
-      allow read: if signedIn();
-      allow create, update: if isOwner(userId);
+    match /users/{uid} {
+      // Account profiles are addressable by accepted connections. Email lookup is server-only.
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if owner(uid) && request.resource.data.uid == uid;
       allow delete: if false;
+      match /settings/{document} { allow read, write: if owner(uid); }
+      match /notifications/{id} {
+        allow read: if owner(uid);
+        allow update: if owner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) && request.resource.data.read is bool;
+        allow create, delete: if false;
+      }
+      match /favorites/{noteId} {
+        allow read: if owner(uid);
+        allow create, update: if owner(uid) && member(get(/databases/$(database)/documents/notes/$(noteId)).data) &&
+          request.resource.data.keys().hasOnly(['noteId']) && request.resource.data.noteId == noteId;
+        allow delete: if owner(uid);
+      }
+      match /aiRequests/{id} { allow read: if owner(uid); allow write: if false; }
+      match /chats/{chatId} {
+        allow read: if owner(uid);
+        allow delete: if owner(uid);
+        allow create: if false;
+        allow update: if owner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title']) && request.resource.data.title is string && request.resource.data.title.size() <= 200;
+        match /messages/{messageId} {
+          allow read: if owner(uid);
+          allow update: if owner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fb']) && request.resource.data.fb in ['up','down',null];
+          allow create, delete: if false;
+        }
+      }
+      match /invitations/{id} { allow read, delete: if owner(uid); allow create, update: if false; }
     }
-
     match /notes/{noteId} {
-      allow read: if isNoteOwner() || isSharedReader() || isPendingSharedReader();
-      allow create: if isOwner(request.resource.data.userId);
-      allow update: if isNoteOwner() || (
-        isPendingSharedReader() &&
-        request.resource.data.userId == resource.data.userId &&
-        request.resource.data.title == resource.data.title &&
-        request.resource.data.content == resource.data.content &&
-        request.resource.data.category == resource.data.category &&
-        request.resource.data.isFavorite == resource.data.isFavorite &&
-        request.resource.data.createdAt == resource.data.createdAt &&
-        (!('ownerName' in resource.data) || request.resource.data.ownerName == resource.data.ownerName) &&
-        (!('ownerEmail' in resource.data) || request.resource.data.ownerEmail == resource.data.ownerEmail)
+      allow read: if noteReader(resource.data);
+      allow create: if owner(request.resource.data.userId) && noteValid(request.resource.data) &&
+        request.resource.data.get('liveMemberIds', []).size() == 0 &&
+        request.resource.data.get('liveRoles', {}).size() == 0 &&
+        request.resource.data.get('pendingSharedWithUserIds', []).size() == 0 &&
+        request.resource.data.get('sharedWithUserIds', []).size() == 0 &&
+        request.resource.data.get('revision', 0) == 0 &&
+        (request.resource.data.get('sourceOwnerId', '') == '' ||
+          get(/databases/$(database)/documents/notes/$(request.resource.data.sourceNoteId)).data.userId == request.resource.data.sourceOwnerId);
+      allow update: if noteValid(request.resource.data) && (
+        // Share/member identity changes are server-only. Collaborative content uses revision CAS.
+        (resource.data.get('deletedAt', null) == null && editable(resource.data) && (owner(resource.data.userId) || request.resource.data.isFavorite == resource.data.isFavorite) && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'content', 'category', 'color', 'attachments', 'createdAt', 'isFavorite', 'updatedAt', 'revision', 'lastEditedBy'
+        ]) && request.resource.data.get('lastEditedBy', request.auth.uid) == request.auth.uid && request.resource.data.get('revision', 0) == resource.data.get('revision', 0) + 1) ||
+        (owner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletedAt'])) ||
+        (owner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isFavorite', 'updatedAt'])) ||
+        // A recipient may remove only themselves from the pending list.
+        (signedIn() && request.auth.uid in resource.data.get('pendingSharedWithUserIds', []) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingSharedWithUserIds', 'updatedAt']) &&
+         request.resource.data.pendingSharedWithUserIds == resource.data.pendingSharedWithUserIds.removeAll([request.auth.uid]))
       );
-      allow delete: if isNoteOwner();
+      allow delete: if false;
+      match /presence/{uid} {
+        function note() { return get(/databases/$(database)/documents/notes/$(noteId)).data; }
+        allow read: if member(note());
+        allow create, update: if owner(uid) && member(note()) &&
+          (!exists(/databases/$(database)/documents/users/$(uid)/settings/preferences) || get(/databases/$(database)/documents/users/$(uid)/settings/preferences).data.get('presence', true) == true) &&
+          request.resource.data.keys().hasOnly(['name', 'typing', 'expiresAt']) &&
+          request.resource.data.name is string && request.resource.data.name.size() <= 200 &&
+          request.resource.data.typing is bool && request.resource.data.expiresAt is timestamp &&
+          request.resource.data.expiresAt > request.time &&
+          request.resource.data.expiresAt <= request.time + duration.value(60, 's');
+        allow delete: if owner(uid);
+      }
     }
-
-    match /connectionRequests/{connectionId} {
-      allow read: if requestInvolvesUser();
-      allow create: if signedIn()
-        && request.auth.uid == request.resource.data.fromUserId
-        && request.resource.data.status == 'pending';
-      allow update: if requestInvolvesUser();
-      allow delete: if requestInvolvesUser();
+    match /connectionRequests/{id} {
+      function involved() { return signedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid); }
+      allow read: if involved();
+      allow create: if false;
+      allow update: if signedIn() && resource.data.toUserId == request.auth.uid &&
+        resource.data.status == 'pending' && request.resource.data.status in ['accepted', 'rejected'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if involved();
     }
   }
 }

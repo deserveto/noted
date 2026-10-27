@@ -2,71 +2,64 @@
 
 ## Project Overview
 
-Noted is a Flutter mobile note-taking app for personal and business use: capture notes, organize them by category, mark favorites, connect with colleagues and collaborators by email, and share note copies with accepted connections. Built with MVVM architecture and Provider state management, backed by Firebase Authentication and Cloud Firestore.
+Noted is a Flutter mobile note-taking app for personal and business use: capture rich-text notes, organize them by category and calendar date, mark favorites, collaborate live with edit/view roles and presence, attach images/drawings/voice memos, explore notes with Noted AI, connect with collaborators by email, and share independent note copies. Built with MVVM architecture and Provider state management, backed by **Supabase** (Supabase Auth, PostgreSQL with Row Level Security, Supabase Realtime, Private Supabase Storage, Edge Functions, and `pg_cron` schedules).
 
-Verified environment: Flutter 3.41.6 (stable) / Dart 3.11.4 on Windows. `flutter` and `dart` are on `PATH`.
+Verified environment: Flutter 3.41.6 (stable) / Dart 3.11.4 and Node.js 22+ on Windows. `flutter`, `dart`, and `node` are on `PATH`.
 
-The repository is a git repo (remote: `https://github.com/deserveto/noted.git`, `main` branch).
+The repository is a git repo (remote: `https://github.com/deserveto/noted.git`, active migration branch: `feature/supabase-migration`).
 
 ## Current Features (verified in code)
 
-- **Auth**: email/password sign up, sign in, logout; active-user display via `AuthViewModel` + `AuthRepository` (Firebase Auth).
-- **Notes CRUD**: title, Markdown content, category, favorite flag, `createdAt`/`updatedAt`; persisted in Cloud Firestore via `NoteRepository`.
-- **Markdown support**: bold/italic/underline/bullet/numbered formatting via `utils/markdown_formatter.dart` + `widgets/formatting_toolbar.dart` in the editor, rendered through `widgets/markdown_content.dart`.
-- **Search**: by title or content (`NoteViewModel.searchQuery`).
-- **Category filtering**: dynamic category chips derived from user notes (`widgets/category_chips.dart`).
-- **Favorites**: pinned notes page + dashboard counts.
-- **Dashboard/home summary**: note and favorite stats (`widgets/stat_card.dart`).
-- **Connections**: send requests by email, accept/reject, incoming/outgoing pending lists (`ConnectionModel` with `pending/accepted/rejected` status).
-- **Note sharing**: notes carry `sharedWithUserIds` / `pendingSharedWithUserIds` — sharing note copies with accepted connections.
-- **Theme switching**: light/dark via `ThemeViewModel` and `ThemeMode` in `app.dart`; full dark palette in `AppColors`.
-- **Navigation**: 5-destination bottom `NavigationBar` in `main_shell.dart`: Home, Notes, Favorites, Connections, Profile (keep-all `IndexedStack`).
+- **Auth & Account**: email/password sign up, sign in, logout, password reset (`noted://app/auth-callback` in-app recovery), profile photo upload, password update, JSON export, and full account deletion via `AuthViewModel` + `AuthRepository` + `account` Edge Function.
+- **Notes CRUD & Trash**: title, WYSIWYG Quill Delta content (with non-destructive legacy Markdown import), category, note color, favorite flag, soft delete (`RecentlyDeletedPage`), restore, and 30-day scheduled purge.
+- **Live Collaboration & Concurrency**: edit/view roles, expiring Realtime presence (`note_presence`), member revocation, and atomic revision-checked CAS operational transformation (`commit_note_revision` + `CollaborativeDocument`).
+- **Offline Support**: per-account local note cache and coalescing pending-write outbox (`OfflineNoteStore`) replayed automatically on reconnect.
+- **Private Media**: images, doodles, voice memos, and avatars stored in private Supabase Storage buckets (`note-media`, `avatars`) with `noted-media://` URIs resolved to short-lived signed URLs (`MediaUrlResolver`) and copied independently on share/duplication.
+- **Noted AI**: scoped note retrieval, source validation, structured blocks, cancellation, feedback, and chat history via the `noted-ai` Edge Function (OpenRouter `openrouter/free` default, configurable OpenAI-compatible adapter).
+- **Connections & Activity**: email connection requests, Resend email invitations, activity feed (`notifications`), quiet hours, and Sunday weekly recaps (`scheduled-maintenance`).
+- **Theme, Accessibility & Navigation**: light/dark/system themes (`AppColors`, `AppTheme`), DM Sans + Newsreader italic typography, App Lock (`AppLockGate`), and 5-tab shell (Home, Notes, AI, Connections, Profile).
 
 ## Architecture
 
-Actual `lib/` structure (follow it; keep responsibilities clear):
+Actual structure (follow it; keep responsibilities clear):
 
 ```text
 lib/
-  main.dart          # Firebase init + MultiProvider wiring (viewmodels bound to auth user)
-  app.dart           # MaterialApp, named routes, AuthGate
-  firebase_options.dart
-  models/            # plain data + Firestore mapping: note_model, user_model, connection_model
-  repositories/      # Firestore/Firebase Auth access: auth_repository, note_repository, connection_repository
-  services/
-  utils/             # app_colors, app_theme, app_routes, validators, markdown_formatter
-  viewmodels/        # Provider ChangeNotifiers: auth, note, connection, theme
-  views/             # screens: welcome, sign_in/up, main_shell, home, notes, favorites, connections, profile, add_edit_note, note_detail
-  widgets/           # note_card, category_chips, markdown_content, formatting_toolbar, custom_button/text_field, empty_state, stat_card
+  main.dart          # SupabaseService.initialize() + MultiProvider wiring
+  app.dart           # MaterialApp, named routes, deep links, AuthGate, AnalyticsService
+  models/            # pure Dart + Postgres/JSON mapping: note_model, user_model, connection_model, settings_model
+  repositories/      # Supabase access: auth, note, connection, ai, settings, activity, profile
+  services/          # supabase_service, media_url_resolver, offline_note_store, analytics_service, attachment_service, collaboration_service, account_services, app_lock_gate
+  utils/             # app_colors, app_theme, app_routes, validators, document_codec, collaborative_document, markdown_formatter, note_links
+  viewmodels/        # Provider ChangeNotifiers: auth, note, connection, settings, theme
+  views/             # welcome, sign_in/up, main_shell, home, notes, ai, connections, profile, settings, add_edit_note, note_detail, note_link
+  widgets/           # noted_ui, reference_icon, note_card, note_attachments, rich_note_embed, ai_blocks, activity_sheet, share_note_sheet, calendar_sheet, formatting_toolbar
+supabase/
+  config.toml        # Local Supabase CLI & Edge Function config
+  migrations/        # Versioned PostgreSQL schema, RLS, triggers, RPCs, private Storage & pg_cron setup
+  functions/         # Deno Edge Functions: noted-ai, note-sharing, connections, account, scheduled-maintenance
+  tests/             # Automated PGlite SQL/RLS, Edge Function & migration test suites
+tools/migration/     # Repeatable Firebase -> Supabase export, import (--dry-run), validation & rollback CLI
 ```
 
 Key patterns:
 
-- `main.dart` wires `ChangeNotifierProxyProvider`s so `NoteViewModel`/`ConnectionViewModel` rebind to the current auth user.
-- Routes are named constants in `utils/app_routes.dart`; `AuthGate` in `app.dart` decides Welcome vs. MainShell.
-- Repositories construct viewmodels directly (no DI container). Don't introduce heavyweight frameworks.
-- Colors live in `utils/app_colors.dart` as `const`s; both light and dark palettes are defined there.
+- `main.dart` calls `SupabaseService.initialize()` (reading `--dart-define-from-file=.env.supabase.json`) and wires `ChangeNotifierProxyProvider`s bound to `AuthViewModel`.
+- Repositories resolve `SupabaseService.maybeClient` lazily so widget/golden tests run without live network credentials.
+- Never introduce Firebase dependencies (`firebase_*`, `cloud_*`) or heavyweight DI frameworks.
+- Never place API keys, `SUPABASE_SERVICE_ROLE_KEY`, or DB credentials in Flutter, logs, Git, or chat.
 
 ## Design Direction
 
-- Minimal, soft academic notes app: off-white background, compact rounded search field and category chips, colored note cards, dark floating circular add button, bottom-sheet category/edit affordances, calm Roboto typography.
-- Base palette: Background `#F8F7F2`, Primary `#6A9C89`, Secondary `#FFD66B`, Text `#2F2F2F`, Card `#FFFFFF`, Error/Delete `#E57373`
-- Note card colors are cycled from `AppColors.noteColors` / `darkNoteColors` per note index via `noteColorFor(Brightness, int)`.
-- Keep light/dark in sync: any color change needs both variants.
-- Detailed design tokens and further guidelines live in `DESIGN.md` at the repo root — consult it before UI work.
-
-## Stale or Removed References
-
-- `docs/` now contains **only `docs/Logo.png`** (referenced by `pubspec.yaml` and `README.md`). The PRD, design-reference screenshots, `superpowers/`, and `IMPLEMENTATION_LOG.md` were **deleted** — do not cite them or expect them to exist.
-- The app is branded for **personal and business usage** (not student-only). Keep this framing when writing copy, examples, or new screens.
+- Approved UI reference: `C:/dev/NotedUIRevised` (preserve `docs/Logo.png`, DM Sans + Newsreader italic fonts, `AppColors`, light/dark palettes, and WYSIWYG Quill editing without visible Markdown markers).
+- Consult `DESIGN.md` before any UI work and keep all golden tests in `test/goldens/` passing.
 
 ## Verification Expectations
 
-Flutter toolchain is available. Before claiming completion, run from the repo root:
+Before claiming completion, run:
 
+- `Set-Location tools/migration; npm test` — runs PostgreSQL/RLS, Edge Function, and migration tooling tests (`89` tests at the latest full review verification)
 - `flutter pub get`
-- `flutter analyze` — must be clean (verified 2026-10-26: 0 issues)
-- `flutter test` — tests live in `test/` (note_model, connection_viewmodel, formatting_toolbar, feature_upgrade tests)
-- `flutter build apk` for full build verification, if appropriate
-
-Report exact commands and failures if any step fails.
+- `flutter analyze` — must be clean (`0` issues)
+- `flutter test` — all unit, widget, golden, and Supabase migration tests must pass (`115` tests at the latest full review verification)
+- `flutter build apk --release --dart-define-from-file=.env.supabase.json` — full Android APK verification wired to `.env.supabase.json`

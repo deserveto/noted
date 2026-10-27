@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_colors.dart';
 import '../utils/markdown_formatter.dart';
+import 'reference_icon.dart';
 
 class FormattingToolbar extends StatefulWidget {
   const FormattingToolbar({
     required this.controller,
+    this.onClose,
+    this.smartLists = true,
     super.key,
   });
 
   final TextEditingController controller;
+  final VoidCallback? onClose;
+  final bool smartLists;
 
   @override
   State<FormattingToolbar> createState() => _FormattingToolbarState();
@@ -53,43 +58,81 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _FormatButton(
-            tooltip: 'Bold',
-            label: 'B',
-            style: const TextStyle(fontWeight: FontWeight.w900),
-            onPressed: () => _applyInline(MarkdownFormat.bold),
-          ),
-          _FormatButton(
-            tooltip: 'Italic',
-            label: 'I',
-            style: const TextStyle(fontStyle: FontStyle.italic),
-            onPressed: () => _applyInline(MarkdownFormat.italic),
-          ),
-          _FormatButton(
-            tooltip: 'Underline',
-            label: 'U',
-            style: const TextStyle(decoration: TextDecoration.underline),
-            onPressed: () => _applyInline(MarkdownFormat.underline),
-          ),
-          _IconFormatButton(
-            tooltip: 'Bullets',
-            isActive: _bulletActive,
-            onPressed: () => _toggleList(MarkdownFormat.bullet),
-            icon: Icons.format_list_bulleted_rounded,
-          ),
-          _IconFormatButton(
-            tooltip: 'Numbering',
-            isActive: _numberedActive,
-            onPressed: () => _toggleList(MarkdownFormat.numbered),
-            icon: Icons.format_list_numbered_rounded,
-          ),
-        ],
-      ),
+      child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              if (widget.onClose != null)
+                IconButton(
+                    tooltip: 'Close formatting',
+                    onPressed: widget.onClose,
+                    icon: const ReferenceIcon('x', size: 18)),
+              IconButton(
+                  tooltip: 'Highlight',
+                  onPressed: () => _wrap('<mark>', '</mark>'),
+                  icon: const ReferenceIcon('marker', size: 19)),
+              IconButton(
+                  tooltip: 'Increase font size',
+                  onPressed: () => _wrap('<big>', '</big>'),
+                  icon: const Text('A⁺', style: TextStyle(fontSize: 17))),
+              IconButton(
+                  tooltip: 'Decrease font size',
+                  onPressed: () => _wrap('<small>', '</small>'),
+                  icon: const Text('A⁻', style: TextStyle(fontSize: 13))),
+              _FormatButton(
+                tooltip: 'Bold',
+                label: 'B',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+                onPressed: () => _applyInline(MarkdownFormat.bold),
+              ),
+              _FormatButton(
+                tooltip: 'Italic',
+                label: 'I',
+                style: const TextStyle(fontStyle: FontStyle.italic),
+                onPressed: () => _applyInline(MarkdownFormat.italic),
+              ),
+              _FormatButton(
+                tooltip: 'Underline',
+                label: 'U',
+                style: const TextStyle(decoration: TextDecoration.underline),
+                onPressed: () => _applyInline(MarkdownFormat.underline),
+              ),
+              _IconFormatButton(
+                tooltip: 'Bullets',
+                isActive: _bulletActive,
+                onPressed: () => _toggleList(MarkdownFormat.bullet),
+                icon: Icons.format_list_bulleted_rounded,
+              ),
+              _IconFormatButton(
+                tooltip: 'Numbering',
+                isActive: _numberedActive,
+                onPressed: () => _toggleList(MarkdownFormat.numbered),
+                icon: Icons.format_list_numbered_rounded,
+              ),
+              IconButton(
+                  tooltip: 'Align center',
+                  onPressed: () => _wrap('<center>', '</center>'),
+                  icon: const ReferenceIcon('alignC', size: 19)),
+              IconButton(
+                  tooltip: 'Align right',
+                  onPressed: () => _wrap('<right>', '</right>'),
+                  icon: const ReferenceIcon('alignR', size: 19)),
+            ],
+          )),
     );
+  }
+
+  void _wrap(String prefix, String suffix) {
+    final controller = widget.controller;
+    final selection = controller.selection;
+    final start = selection.isValid ? selection.start : controller.text.length;
+    final end = selection.isValid ? selection.end : start;
+    final selected = controller.text.substring(start, end);
+    controller.value = TextEditingValue(
+        text:
+            controller.text.replaceRange(start, end, '$prefix$selected$suffix'),
+        selection: TextSelection.collapsed(
+            offset: start + prefix.length + selected.length));
   }
 
   void _applyInline(MarkdownFormat format) {
@@ -135,7 +178,9 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
   }
 
   void _continueActiveList() {
-    if (_isApplyingEdit || (!_bulletActive && !_numberedActive)) {
+    if (!widget.smartLists ||
+        _isApplyingEdit ||
+        (!_bulletActive && !_numberedActive)) {
       return;
     }
     final value = widget.controller.value;
@@ -220,7 +265,7 @@ class _IconFormatButton extends StatelessWidget {
       isSelected: isActive,
       onPressed: onPressed,
       style: _buttonStyle(context, isActive),
-      icon: Icon(icon),
+      icon: ReferenceIcon(tooltip == 'Bullets' ? 'bullets' : 'numbered'),
     );
   }
 }

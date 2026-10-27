@@ -1,0 +1,23 @@
+{
+  "name": "noted-supabase-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:sql": "node --test ../../supabase/tests/rls_and_rpcs.test.mjs",
+    "test:functions": "node --test ../../supabase/tests/edge_functions.test.mjs",
+    "test:migration": "node --test ../../supabase/tests/migration_tools.test.mjs",
+    "test": "node --test ../../supabase/tests/*.test.mjs",
+    "export:firebase": "node export_firebase.mjs",
+    "import:supabase": "node import_supabase.mjs",
+    "validate:migration": "node validate_migration.mjs",
+    "rollback:supabase": "node rollback_supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
+    "firebase-admin": "^13.4.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}

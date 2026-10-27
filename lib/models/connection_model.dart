@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum ConnectionStatus {
   pending,
   accepted,
@@ -38,26 +36,20 @@ class ConnectionModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  factory ConnectionModel.fromDocument(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) {
-    return ConnectionModel.fromMap(
-        {...document.data(), 'connectionId': document.id});
-  }
-
   factory ConnectionModel.fromMap(Map<String, dynamic> map) {
     return ConnectionModel(
-      connectionId: map['connectionId'] as String? ?? '',
-      fromUserId: map['fromUserId'] as String? ?? '',
-      fromName: map['fromName'] as String? ?? '',
-      fromEmail: map['fromEmail'] as String? ?? '',
-      toUserId: map['toUserId'] as String? ?? '',
-      toName: map['toName'] as String? ?? '',
-      toEmail: map['toEmail'] as String? ?? '',
+      connectionId:
+          (map['connectionId'] ?? map['connection_id']) as String? ?? '',
+      fromUserId: (map['fromUserId'] ?? map['from_user_id']) as String? ?? '',
+      fromName: (map['fromName'] ?? map['from_name']) as String? ?? '',
+      fromEmail: (map['fromEmail'] ?? map['from_email']) as String? ?? '',
+      toUserId: (map['toUserId'] ?? map['to_user_id']) as String? ?? '',
+      toName: (map['toName'] ?? map['to_name']) as String? ?? '',
+      toEmail: (map['toEmail'] ?? map['to_email']) as String? ?? '',
       status:
           ConnectionStatus.fromString(map['status'] as String? ?? 'pending'),
-      createdAt: _readDate(map['createdAt']),
-      updatedAt: _readDate(map['updatedAt']),
+      createdAt: _readDate(map['createdAt'] ?? map['created_at']),
+      updatedAt: _readDate(map['updatedAt'] ?? map['updated_at']),
     );
   }
 
@@ -71,8 +63,8 @@ class ConnectionModel {
       'toName': toName,
       'toEmail': toEmail,
       'status': status.name,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -99,11 +91,15 @@ class ConnectionModel {
   }
 
   static DateTime _readDate(Object? value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    }
     if (value is DateTime) {
       return value;
+    }
+    if (value is String && value.isNotEmpty) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
     }
     return DateTime.now();
   }

@@ -1,0 +1,65 @@
+# Noted Supabase Local Development & Deployment Configuration
+project_id = "noted"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+file_size_limit = "30MiB"
+
+[auth]
+enabled = true
+site_url = "noted://app/auth-callback"
+additional_redirect_urls = [
+  "noted://app/auth-callback",
+  "noted://app/notes/**",
+  "http://localhost:3000/**"
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+minimum_password_length = 6
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+secure_password_change = false
+max_frequency = "1s"
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[functions.noted-ai]
+verify_jwt = false
+
+[functions.note-sharing]
+verify_jwt = false
+
+[functions.connections]
+verify_jwt = false
+
+[functions.account]
+verify_jwt = false
+
+[functions.scheduled-maintenance]
+verify_jwt = false

@@ -53,6 +53,40 @@ void main() {
     expect(parsed.pendingSharedWithUserIds, ['friend-2']);
   });
 
+  test('legacy note defaults and live permissions are backwards compatible',
+      () {
+    final legacy = NoteModel.fromMap({'userId': 'owner'});
+    expect(legacy.color, 'blue');
+    expect(legacy.revision, 0);
+    expect(legacy.isLive, false);
+    expect(legacy.deletedAt, isNull);
+    final live = legacy.copyWith(
+        liveMemberIds: ['writer', 'reader'],
+        liveRoles: {'writer': 'edit', 'reader': 'view'});
+    expect(live.canEdit('owner'), true);
+    expect(live.canEdit('writer'), true);
+    expect(live.canEdit('reader'), false);
+    expect(live.canEdit('stranger'), false);
+    expect(live.isLive, true);
+    expect(NoteModel.fromMap(live.toMap()).liveRoles['writer'], 'edit');
+  });
+
+  test('soft deletion can be explicitly cleared for Undo', () {
+    final note = NoteModel.empty('owner').copyWith(deletedAt: DateTime(2026));
+    expect(NoteModel.fromMap(note.toMap()).deletedAt, DateTime(2026));
+    expect(note.copyWith(title: 'Preserved tombstone').deletedAt, isNotNull);
+    expect(note.copyWith(clearDeletedAt: true).deletedAt, isNull);
+  });
+
+  test('search reads Quill text without matching internal JSON attributes', () {
+    final note = NoteModel.empty('owner').copyWith(
+        content:
+            '{"notedDocument":1,"ops":[{"insert":"Project strategy","attributes":{"bold":true}}]}');
+    expect(note.matches('strategy'), true);
+    expect(note.matches('attributes'), false);
+    expect(note.plainText, 'Project strategy');
+  });
+
   test('clears note filters when no user is bound', () {
     final viewModel = NoteViewModel(_FakeNoteRepository());
 
@@ -149,6 +183,8 @@ void main() {
 }
 
 class _FakeNoteRepository implements NoteRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
   final List<NoteModel> inMemoryNotes = [];
   final _updateBroadcaster = StreamController<void>.broadcast();
 

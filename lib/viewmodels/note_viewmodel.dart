@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
 
+enum LibraryFilter { all, favorites, live }
+
+enum NoteSort { lastEdited, dateCreated, title }
+
 class NoteViewModel extends ChangeNotifier {
   NoteViewModel(this._repository);
 
@@ -26,9 +30,30 @@ class NoteViewModel extends ChangeNotifier {
   List<NoteModel> _notes = [];
   List<NoteModel> _pendingSharedNotes = [];
   String _searchQuery = '';
+  int _searchRevision = 0;
   String _selectedCategory = 'All';
+  LibraryFilter _libraryFilter = LibraryFilter.all;
+  NoteSort _sort = NoteSort.lastEdited;
+  bool _isDisposed = false;
   bool _isLoading = false;
   String? _errorMessage;
+
+  String? get boundUserId => _boundUserId;
+  Future<void> prepareRemoteAccount(String uid) async {
+    try {
+      await _repository.prepareAccount();
+    } catch (error) {
+      if (_boundUserId != uid || _isDisposed) return;
+      _errorMessage =
+          'Couldn’t prepare shared notes. Check the connection and Supabase backend setup. $error';
+      notifyListeners();
+    }
+  }
+
+  LibraryFilter get libraryFilter => _libraryFilter;
+  NoteSort get sort => _sort;
+  List<NoteModel> get liveNotes => _notes.where((n) => n.isLive).toList();
+  int get totalLive => liveNotes.length;
 
   List<NoteModel> get notes => List.unmodifiable(_notes);
   List<NoteModel> get pendingSharedNotes =>
@@ -36,6 +61,7 @@ class NoteViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get searchQuery => _searchQuery;
+  int get searchRevision => _searchRevision;
   String get selectedCategory => _selectedCategory;
 
   List<String> get categories {
@@ -52,8 +78,19 @@ class NoteViewModel extends ChangeNotifier {
     return _notes.where((note) {
       final categoryMatches =
           _selectedCategory == 'All' || note.category == _selectedCategory;
-      return categoryMatches && note.matches(_searchQuery);
-    }).toList();
+      final filterMatches = switch (_libraryFilter) {
+        LibraryFilter.all => true,
+        LibraryFilter.favorites => note.isFavorite,
+        LibraryFilter.live => note.isLive,
+      };
+      return categoryMatches && filterMatches && note.matches(_searchQuery);
+    }).toList()
+      ..sort((a, b) => switch (_sort) {
+            NoteSort.lastEdited => b.updatedAt.compareTo(a.updatedAt),
+            NoteSort.dateCreated => b.createdAt.compareTo(a.createdAt),
+            NoteSort.title =>
+              a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+          });
   }
 
   List<NoteModel> get favoriteNotes {
@@ -78,6 +115,7 @@ class NoteViewModel extends ChangeNotifier {
     _notes = [];
     _pendingSharedNotes = [];
     _searchQuery = '';
+    _searchRevision++;
     _selectedCategory = 'All';
     _isLoading = false;
     _errorMessage = null;
@@ -92,6 +130,7 @@ class NoteViewModel extends ChangeNotifier {
     _notesSubscription = _repository.watchNotes(userId).listen(
       (notes) {
         _notes = notes;
+        _errorMessage = null;
         _isLoading = false;
         notifyListeners();
       },
@@ -113,8 +152,41 @@ class NoteViewModel extends ChangeNotifier {
     );
   }
 
+  void updateLibraryFilter(LibraryFilter filter) {
+    _libraryFilter = filter;
+    notifyListeners();
+  }
+
+  void updateSort(NoteSort sort) {
+    _sort = sort;
+    notifyListeners();
+  }
+
+  void retry() {
+    final uid = _boundUserId;
+    _boundUserId = null;
+    bindUser(uid);
+  }
+
+  Future<String?> saveNoteAndReturnId(NoteModel note) async {
+    String? id;
+    await _runAction(() async {
+      if (note.noteId.isEmpty) {
+        id = await _repository.createNote(note);
+      } else {
+        await _repository.updateNote(note);
+        id = note.noteId;
+      }
+    });
+    return id;
+  }
+
+  Future<void> restoreNote(String noteId) =>
+      _runAction(() => _repository.restoreNote(noteId));
+
   void updateSearch(String query) {
     _searchQuery = query;
+    _searchRevision++;
     notifyListeners();
   }
 
@@ -196,7 +268,13 @@ class NoteViewModel extends ChangeNotifier {
   }
 
   @override
+  void notifyListeners() {
+    if (!_isDisposed) super.notifyListeners();
+  }
+
+  @override
   void dispose() {
+    _isDisposed = true;
     _notesSubscription?.cancel();
     _pendingSubscription?.cancel();
     super.dispose();

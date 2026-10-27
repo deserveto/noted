@@ -10,10 +10,14 @@ release/
 
 # Android
 android/.gradle/
+android/.kotlin/
 android/local.properties
 android/app/debug/
 android/app/profile/
 android/app/release/
+android/key.properties
+*.jks
+*.keystore
 
 # IDE
 .idea/
@@ -29,3 +33,27 @@ run-emulator.cmd
 
 # Design reference images
 docs/*.webp
+
+# Local verification output
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+pglite-debug.log
+test/failures/
+
+# Environment & secrets (never commit real credentials)
+.env
+.env.*
+!.env.example
+!.env.supabase.example.json
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+supabase/.temp/
+supabase/.branches/
+
+# Node tooling & migration bundles
+node_modules/
+tools/migration/exports/
+tools/migration/service-account*.json
+*firebase-adminsdk*.json
