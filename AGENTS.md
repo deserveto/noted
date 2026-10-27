@@ -6,7 +6,7 @@ Noted is a Flutter mobile note-taking app for personal and business use: capture
 
 Verified environment: Flutter 3.41.6 (stable) / Dart 3.11.4 and Node.js 22+ on Windows. `flutter`, `dart`, and `node` are on `PATH`.
 
-The repository is a git repo (remote: `https://github.com/deserveto/noted.git`, active migration branch: `feature/supabase-migration`).
+The repository is a git repo (remote: `https://github.com/deserveto/noted.git`, default branch: `main`). The combined UI/backend migration was merged in PR #50; its fully merged feature branches have been removed.
 
 ## Current Features (verified in code)
 

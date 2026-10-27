@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="500" viewBox="0 0 1280 500" role="img" aria-labelledby="title desc">
+  <title id="title">Noted — a quieter place for your next idea</title>
+  <desc id="desc">A charcoal banner with soft sage typography and an original illustration of three overlapping note cards. Rich writing, shared thinking, everyday organization.</desc>
+  <defs>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#3B443D"/></pattern>
+  </defs>
+  <rect width="1280" height="500" rx="24" fill="#1B1E1C"/>
+  <path d="M760 0H1256Q1280 0 1280 24V476Q1280 500 1256 500H760Z" fill="url(#grid)"/>
+  <path d="M68 61h34" stroke="#86B7A3" stroke-width="3"/>
+  <text x="116" y="67" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="3" fill="#86B7A3">A SPACE TO THINK</text>
+  <text x="64" y="184" font-family="Georgia, 'Times New Roman', serif" font-size="75" letter-spacing="-3" fill="#F1EEE4">A quieter place</text>
+  <text x="64" y="270" font-family="Georgia, 'Times New Roman', serif" font-size="75" font-style="italic" letter-spacing="-3" fill="#86B7A3">for your next idea.</text>
+  <text x="68" y="325" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#A3A89F">Rich writing. Shared thinking. Everyday organization.</text>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="1">
+    <rect x="68" y="399" width="124" height="34" rx="17" fill="#2C322E"/><text x="89" y="421" fill="#86B7A3">RICH NOTES</text>
+    <rect x="202" y="399" width="144" height="34" rx="17" fill="#2C322E"/><text x="224" y="421" fill="#86B7A3">LIVE TOGETHER</text>
+    <rect x="356" y="399" width="142" height="34" rx="17" fill="#2C322E"/><text x="377" y="421" fill="#86B7A3">YOUR OWN PACE</text>
+  </g>
+  <g transform="translate(858 92) rotate(-11 128 150)">
+    <rect width="256" height="300" rx="21" fill="#71603A" stroke="#97804B"/>
+    <path d="M28 43h75M28 71h156" stroke="#F1D58F" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+  </g>
+  <g transform="translate(913 99) rotate(9 128 150)">
+    <rect width="256" height="300" rx="21" fill="#3B5849" stroke="#5C806C"/>
+    <path d="M28 43h106M28 71h158" stroke="#A0D0B8" stroke-width="8" stroke-linecap="round" opacity=".45"/>
+  </g>
+  <g transform="translate(867 135) rotate(-2 128 150)">
+    <rect width="256" height="300" rx="21" fill="#242926" stroke="#434B45" stroke-width="2"/>
+    <text x="27" y="45" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="2" fill="#A3A89F">LITTLE BY LITTLE</text>
+    <text x="27" y="96" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="30" fill="#F1EEE4">Something good</text>
+    <text x="27" y="132" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="30" fill="#F1EEE4">starts here.</text>
+    <g fill="none" stroke="#86B7A3" stroke-width="2">
+      <rect x="28" y="169" width="14" height="14" rx="3"/><path d="m31 176 3 3 5-7"/>
+      <rect x="28" y="202" width="14" height="14" rx="3"/>
+    </g>
+    <path d="M55 176h117M55 209h90" stroke="#526057" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="35" cy="263" r="6" fill="#86B7A3"/>
+    <text x="50" y="268" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#A3A89F">Room for what matters.</text>
+  </g>
+</svg>

@@ -1,125 +1,140 @@
-# Noted Migration Suite: Firebase to Supabase
+# Firebase → Supabase migration tools
 
-This directory contains repeatable, idempotent, production-grade CLI tooling to migrate Noted user accounts, Firestore documents, and Cloud Storage media from Firebase to Supabase (PostgreSQL + GoTrue + Private Storage).
+Optional tooling for importing historical Noted data. **Fresh Supabase installations do not need this migration.** For normal setup, use the [backend guide](../../docs/SUPABASE_SETUP_AND_CUTOVER.md).
 
----
+The exporter reads Firebase. Import, parity validation, and guarded rollback target Supabase. The four commands have different effects:
 
-## 1. Architecture & Strategy
-
-### 1.1 Account Migration Strategy & Password Hashing
-Firebase Authentication encrypts passwords using a **modified-scrypt** algorithm (`firebase-scrypt`) that relies on project-specific secrets:
-- Base64 Signer Key
-- Base64 Salt Separator
-- Rounds (typically 8)
-- Memory cost (typically 14)
-
-Because standard Supabase Auth (GoTrue) defaults to bcrypt/Argon2, password hashes exported from Firebase **cannot be verified automatically** unless GoTrue is configured with the project's exact hash signer key and salt separator.
-
-**Recommended Strategy:**
-1. Firebase email verification is preserved: only verified source emails are confirmed. Disabled users receive a 100-year Supabase Auth ban; this is finite and must be managed before expiry. Missing verification flags are treated as unverified.
-2. Enabled users need an appropriate verified email recovery flow to establish a Supabase password; no invitation is automatically sent. An existing confirmed Supabase account cannot be unconfirmed by the Auth admin API, so an unverified source account with that mapped ID blocks import for manual resolution.
-3. Every Firebase UID (such as 28-character alphanumeric strings) is deterministically converted into an RFC-4122 UUIDv5 via `firebaseUidToSupabaseUuid(firebaseUid)`.
-4. The user's original Firebase UID is preserved permanently in `public.profiles.legacy_firebase_uid`.
-5. If re-run, the mapping algorithm produces the exact same UUIDs, preserving all foreign keys, collaborator roles, and private Storage paths.
-
-### 1.2 Deep Link & Content Preservation
-- **Verbatim `note_id`s:** Existing Firestore note document IDs (e.g. 20-character strings) are preserved verbatim in `public.notes.note_id`. Deep links formatted as `noted://app/notes/<id>` continue to resolve without rewriting.
-- **Non-Destructive Content Rewriting:** Notes authored in Quill Delta JSON (`{"notedDocument":1,"ops":[...]}`) or Markdown are preserved without altering ops formatting, text, or internal links. Matched attachment download URLs are rewritten to canonical private media URIs: `noted-media://note-media/<mappedPath>`.
-- **Private Storage:** Avatars are stored in the private `avatars` bucket; note attachments are stored in the private `note-media` bucket.
-
-### 1.3 Idempotency & Duplicate Protection
-Every migrated entity is recorded in `public.migration_id_mappings` alongside a SHA-256 checksum of its source payload. Re-running the import detects matching checksums and skips already-migrated rows, ensuring 0 duplicates and safe resume capability.
-
----
-
-## 2. CLI Tooling Reference
-
-### 2.1 Export from Firebase (`export_firebase.mjs`)
-Exports Auth users, Firestore collections (including user subcollections `private/settings`, `favorites`, `invitations`, `notifications`, `chats`, `messages`), and Storage blobs.
-
-```bash
-# Export using service account key
-node export_firebase.mjs \
-  --out ./exports/latest \
-  --project superheromood-54691 \
-  --service-account ./service-account.json \
-  --include-media true
+```mermaid
+flowchart LR
+    F["Legacy Firebase"] -->|"read only"| E["Export bundle"]
+    E --> D["Dry-run validation"]
+    D -->|"operator-reviewed cutover"| I["Supabase import"]
+    I --> V["Transformed-data parity checks"]
+    I -. "optional seal on empty offline target" .-> R["Guarded database-only rollback"]
 ```
 
-#### Requirement 10 Compliance:
-The export tool **NEVER fabricates synthetic data** and **NEVER mutates or deletes anything in Firebase**. If credentials are missing, inaccessible, or lack necessary permissions, it halts immediately with a structured JSON report and human explanation of the required IAM roles:
-- `Firebase Authentication Viewer`
-- `Cloud Datastore Viewer`
-- `Storage Object Viewer`
+## Start with the safety boundary
 
----
+| Operation | Reads | Writes |
+|---|---|---|
+| `export_firebase.mjs` | Firebase Auth, Firestore, Storage | Local bundle files only |
+| `import_supabase.mjs --dry-run` | Bundle; target mapping ledger if target credentials are supplied | None |
+| `import_supabase.mjs` | Bundle and target mapping state | Supabase Auth, application tables, Storage, migration ledger |
+| `validate_migration.mjs` | Bundle and target Auth/database/media | None |
+| `rollback_supabase.mjs --dry-run` | Locked target state and rollback seal | No deletion |
+| `rollback_supabase.mjs --confirm-rollback` | Locked target state and rollback seal | Eligible migrated database rows only; retains Auth/profiles/settings/Storage |
 
-### 2.2 Dry-Run Import (`import_supabase.mjs --dry-run`)
-Validates every user, note, membership, role, connection, favorite, setting, invitation, notification, chat/message, and storage path rewrite without writing anything to the database or storage.
+Import is a multi-request operation, not an atomic transaction. Plan an offline cutover window and a verified backup. Inspect dry-run output and validate the final target before allowing native user activity.
 
-```bash
-node import_supabase.mjs \
-  --bundle ./exports/latest \
-  --dry-run
+## Prerequisites
+
+- **Node.js 22+** and the committed package lockfile.
+- The [matching Noted schema/RPCs](../../supabase/migrations/) on the target Supabase project.
+- Firebase read-only credentials for export: Authentication Viewer, Cloud Datastore Viewer, and Storage Object Viewer permissions appropriate to the source.
+- A private server-side Supabase service-role key for live target operations. Never use it in Flutter, source control, command examples with real values, or shared logs.
+
+From the repository root:
+
+```powershell
+Set-Location tools/migration
+npm ci
 ```
 
-Outputs a full summary table and mapping preview with 0 database mutations.
+All commands below run from this directory. `exports/` is ignored by Git; bundles contain account data and private media and should be stored and handled privately.
 
----
+## 1. Export the source, without changing it
 
-### 2.3 Live Import (`import_supabase.mjs`)
-Performs live import into Supabase Auth, PostgreSQL tables (`ON CONFLICT DO UPDATE`), and private Storage buckets.
-
-```bash
-node import_supabase.mjs \
-  --bundle ./exports/latest \
-  --supabase-url https://<project>.supabase.co \
-  --service-role-key <SERVICE_ROLE_KEY>
+```powershell
+node export_firebase.mjs --project LEGACY_PROJECT_ID --service-account C:/private/firebase-readonly.json --include-media --out ./exports/bundle
 ```
 
----
+`GOOGLE_APPLICATION_CREDENTIALS` can supply the credential path instead of `--service-account`. The exporter reads the actual legacy paths, including `connectionRequests` and `users/{uid}/settings/preferences`, and emits the normalized bundle layout consumed by the importer. Export includes Auth users, notes/roles/sharing, connections, favorites, preferences, invitations, activity, chats/messages, and optional media.
 
-### 2.4 Validate Migration (`validate_migration.mjs`)
-Compares imported values with transformed bundle data, including note content, memberships, AI citations, and downloaded media SHA-256 checksums. Source timestamps are compared when supplied; generated timestamps cannot be independently reproduced when absent from the source. Validation fails if source records were skipped as orphans. Its checks include:
-1. Row counts across all 9 application tables
-2. User UUIDv5 deterministic mapping & `legacy_firebase_uid` retention
-3. Note ownership & verbatim `note_id` deep-link preservation
-4. `live_member_ids` and `live_roles` UUID integrity & role validation (`edit`/`view`)
-5. `shared_with_user_ids` & `pending_shared_with_user_ids` UUID arrays
-6. Copied note provenance (`source_owner_id`, `source_note_id`)
-7. Personal favorites (`public.user_favorites`)
-8. Connection requests (`public.connection_requests`)
-9. AI chats & messages `sources` array integrity
-10. Quill Delta JSON & Markdown non-destructive preservation
-11. Private Storage objects presence (`avatars` and `note-media`)
-12. Auth email confirmation and active ban state against the source flags
+Missing or invalid credentials stop export with a blocker report. The exporter does not create synthetic replacement data or mutate Firebase. Keep the original bundle immutable so resumed imports and parity checks use the same source.
 
-```bash
-node validate_migration.mjs \
-  --bundle ./exports/latest \
-  --supabase-url https://<project>.supabase.co \
-  --service-role-key <SERVICE_ROLE_KEY>
+## 2. Review a write-free import preview
+
+```powershell
+node import_supabase.mjs --bundle ./exports/bundle --dry-run
 ```
 
----
+Without target credentials this checks the bundle offline. If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present, it can read target mappings to preview idempotency; it still performs no writes. Review warnings, orphans, account-state differences, content/media rewrites, and mapping counts before a live import.
 
-### 2.5 Database-only rollback safety
+## 3. Import into the reviewed target
 
-Legacy ledgers without a trusted rollback seal cannot be rolled back by this tool. New imports may opt in to `--seal-rollback` against an entirely empty target. Keep the target offline during import. After importing, the tool captures a locked database snapshot, validates those exact rows against the source bundle (including exact identities/counts and empty runtime state), then supplies the same snapshot to the seal RPC. The RPC rejects any intervening change under locks. Later activity similarly blocks rollback. The importer does not silently bless whichever rows happen to exist at sealing time; these checks do not make the multi-request import itself atomic or replace an offline cutover window.
+Provide credentials through a private environment or a separate, untracked environment file. Node's `--env-file` avoids placing a real service key in a command argument. For example, keep `C:/private/noted-migration.env` outside this repository, containing `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
-Rollback preflight and database deletion run in a single locked database transaction. The operation refuses changed state or unexpected cascade dependencies. It deliberately retains Auth users, profiles, settings, and all Storage blobs; it is a partial database rollback, not full account or media cleanup. Dry-run reports any blocker and retained data. Restore from a verified backup using an independently reviewed procedure for complete recovery.
-
-```bash
-node rollback_supabase.mjs --dry-run --supabase-url <url> --service-role-key <key>
-node rollback_supabase.mjs --confirm-rollback --supabase-url <url> --service-role-key <key>
+```powershell
+node --env-file=C:/private/noted-migration.env import_supabase.mjs --bundle ./exports/bundle
 ```
 
----
+Do not point this command at an environment until its target, backup, and cutover window are reviewed. The tools also accept `--supabase-url` and `--service-role-key`, but environment-based credentials keep real keys out of shell command history.
 
-## 3. Running Automated Tests
+### What is preserved
 
-All migration tools are tested against real in-memory PostgreSQL (`PGlite`) simulating Supabase Auth, Row Level Security, and Storage:
+| Source property | Target behavior |
+|---|---|
+| Firebase user ID | Deterministic UUIDv5; original UID retained in `profiles.legacy_firebase_uid` |
+| Note ID and note links | Original `note_id` retained, including legacy non-UUID IDs |
+| Rich text and legacy Markdown | Content preserved; matched attachment URLs rewritten to stable private media references |
+| Membership and sharing | User IDs mapped consistently; edit/view roles and copy provenance retained |
+| Favorites, settings, activity, chats | Transformed with their ownership and relationships |
+| Avatars and attachments | Private `avatars` / `note-media` buckets; media parity checks include SHA-256 |
+| Verified email flag | Only verified source email addresses are confirmed |
+| Disabled account flag | Target account banned for 100 years; this finite ban needs lifecycle management |
+| Repeat execution | Entity checksums and mapping ledger skip unchanged imported rows |
 
-```bash
+Firebase password hashes are not imported as usable Supabase passwords by this implementation. Plan a verified account-recovery flow for enabled users; the importer sends no automatic invitation. Missing verification flags are treated as unverified. An already-confirmed target account cannot be unconfirmed through the Admin API, so a source-unverified mismatch blocks for manual resolution. Disabled source users are banned even when that mismatch blocks import.
+
+Idempotency supports resume; it is not a substitute for backups or permission to overwrite activity after cutover.
+
+## 4. Validate the actual target
+
+```powershell
+node --env-file=C:/private/noted-migration.env validate_migration.mjs --bundle ./exports/bundle
+```
+
+Validation compares target data against the **transformed source**, including exact identities/counts, account confirmation/ban state, ownership, note content, role and sharing arrays, favorites, connections, copy provenance, AI sources, and downloaded media checksums. Skipped source orphans fail validation. Timestamps are compared when provided; absent source timestamps cannot independently reproduce generated values.
+
+Inspect every failed check. A successful command means the implemented parity checks passed; it does not prove physical-device flows or email delivery.
+
+## 5. Understand the rollback limit
+
+Rollback is deliberately **database-only**. It retains Auth users, profiles, settings, and all Storage blobs. Complete environment recovery requires a separately reviewed backup/restore procedure.
+
+A new import into an **entirely empty target kept offline** may opt in to a rollback seal:
+
+```powershell
+node --env-file=C:/private/noted-migration.env import_supabase.mjs --bundle ./exports/bundle --seal-rollback
+```
+
+The importer captures a locked database snapshot, validates the exact rows against the source bundle, and passes that same snapshot to the seal RPC. The RPC rejects intervening changes. Later native activity, unexpected dependencies, changed state, and old unsealed ledgers block rollback. Sealing does not make the multi-request import atomic.
+
+Preview first. Only execute deletion after the result and retained data are understood:
+
+```powershell
+node --env-file=C:/private/noted-migration.env rollback_supabase.mjs --dry-run
+node --env-file=C:/private/noted-migration.env rollback_supabase.mjs --confirm-rollback
+```
+
+Preflight and eligible database deletion share a locked transaction. These commands are not a way to clear a populated live environment.
+
+## Verify the tooling
+
+```powershell
+# Full backend/RLS/Edge/migration regression suite: currently 89 tests
+npm test
+
+# Focused original migration workflow suite
 npm run test:migration
 ```
+
+The full suite includes the later migration regression files; the focused script is a subset. PGlite and controlled SDK/handler fixtures exercise transformations, access rules, account states, idempotency, parity, and rollback without production credentials. They do not connect to the real legacy Firebase project.
+
+## Related documentation
+
+- [Project overview and app setup](../../README.md)
+- [Backend overview](../../supabase/README.md)
+- [Setup, cutover, deployment, and release gates](../../docs/SUPABASE_SETUP_AND_CUTOVER.md)
+- [Combined review findings and evidence](../../docs/FULL_CHANGE_REVIEW.md)
+- [Historical migration plan](../../docs/SUPABASE_MIGRATION_PLAN.md)

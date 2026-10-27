@@ -4,9 +4,9 @@ The application uses Supabase Auth, PostgreSQL/RLS, Realtime, private Storage an
 
 ## Current source and live deployment
 
-As last verified on October 27, 2026, migrations 1–10 and all five functions are live. Migration `20261027000011_pr_review_concurrency.sql` and its updated AI/sharing functions are part of the proposed PR and have **not** been deployed. It changes the AI RPC signature: apply migration 11 and deploy `noted-ai` and `note-sharing` as a coordinated release after source approval. AI calls fail closed if the old function runs against the new RPC during the deployment gap.
+As last verified on October 27, 2026, migrations 1–10 and all five functions are live. Migration `20261027000011_pr_review_concurrency.sql` and its updated AI/sharing functions were merged in [PR #50](https://github.com/deserveto/noted/pull/50), but have **not** been deployed in the last recorded environment state. It changes the AI RPC signature: apply migration 11 and deploy `noted-ai` and `note-sharing` as a coordinated release. AI calls fail closed if the old function runs against the new RPC during the deployment gap.
 
-The combined UI/backend review is in [FULL_CHANGE_REVIEW.md](FULL_CHANGE_REVIEW.md); previous audit/remediation evidence is in [SUPABASE_REMEDIATION_REPORT.md](SUPABASE_REMEDIATION_REPORT.md). Local UI/backend branch names originally pointed to the same base commit, so the combined working tree is committed on `feature/supabase-migration`. Creating a PR requires pushing that feature branch; merging `main` awaits the user's approval.
+The combined UI/backend review is in [FULL_CHANGE_REVIEW.md](FULL_CHANGE_REVIEW.md); previous audit/remediation evidence is in [SUPABASE_REMEDIATION_REPORT.md](SUPABASE_REMEDIATION_REPORT.md). PR #50 is merged into `main`. The fully merged feature branches were subsequently removed after checking for unique commits and worktree/stash leftovers. Their source remains in Git history; branch deletion does not deploy the backend.
 
 ## 1. Public client configuration
 
@@ -40,7 +40,7 @@ The repository's `supabase/config.toml` contains local development defaults, inc
 
 ## 3. Schema and functions
 
-From the repository root, after the proposed source release is approved:
+From the repository root, for the reviewed target environment:
 
 ```powershell
 npx supabase login
@@ -49,7 +49,7 @@ npx supabase db push --linked --dry-run
 npx supabase db push --linked
 ```
 
-There are **eleven versioned migrations** in this PR: the original schema/RLS/storage schedules, audit corrections, guarded rollback, deletion claims, account write barriers, copy cleanup reservations/sweeps, atomic AI commits, the email queue cursor, and the PR-review concurrency correction. Never rewrite an already applied migration or reset the live database.
+There are **eleven versioned migrations** in the merged source: the original schema/RLS/storage schedules, audit corrections, guarded rollback, deletion claims, account write barriers, copy cleanup reservations/sweeps, atomic AI commits, the email queue cursor, and the PR-review concurrency correction. Never rewrite an already applied migration or reset the live database.
 
 Functions validate user JWTs internally with `auth.getUser`; maintenance validates its cron secret. Deploy the matching sources:
 
