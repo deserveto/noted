@@ -18,10 +18,32 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell>
+    with SingleTickerProviderStateMixin {
   int _index = 0, _aiGeneration = 0;
+  late final AnimationController _transition = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 200), value: 1);
   String? _aiPrompt;
   Map<String, dynamic>? _aiScope;
+
+  void _navigate(int index) {
+    if (index == _index) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (MediaQuery.disableAnimationsOf(context) ||
+        context.read<SettingsViewModel>().settings.reduceMotion) {
+      _transition.value = 1;
+    } else {
+      _transition.forward(from: 0);
+    }
+    setState(() => _index = index);
+  }
+
+  @override
+  void dispose() {
+    _transition.dispose();
+    super.dispose();
+  }
+
   void _library(String filter) {
     final vm = context.read<NoteViewModel>();
     vm.updateSearch('');
@@ -31,15 +53,18 @@ class _MainShellState extends State<MainShell> {
         : filter == 'Live'
             ? LibraryFilter.live
             : LibraryFilter.all);
-    setState(() => _index = 1);
+    _navigate(1);
   }
 
-  void _ask(String? prompt, Map<String, dynamic> scope) => setState(() {
-        _aiPrompt = prompt;
-        _aiScope = scope;
-        _aiGeneration++;
-        _index = 2;
-      });
+  void _ask(String? prompt, Map<String, dynamic> scope) {
+    setState(() {
+      _aiPrompt = prompt;
+      _aiScope = scope;
+      _aiGeneration++;
+    });
+    _navigate(2);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context),
@@ -61,22 +86,25 @@ class _MainShellState extends State<MainShell> {
         child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 700),
             child: Scaffold(
-              body:
-                  IndexedStack(index: visibleIndex < 0 ? 0 : _index, children: [
-                HomePage(
-                    onConnections: () => setState(() => _index = 3),
-                    onNavigate: _library,
-                    onProfile: () => setState(() => _index = 4)),
-                NotesPage(onAsk: _ask),
-                AiPage(
-                    key: ValueKey(_aiGeneration),
-                    initialScope: _aiScope,
-                    initialPrompt: _aiPrompt),
-                const ConnectionsPage(),
-                ProfilePage(
-                    onNavigate: _library,
-                    onConnections: () => setState(() => _index = 3))
-              ]),
+              body: FadeTransition(
+                  opacity: _transition.drive(Tween(begin: .94, end: 1.0)),
+                  child: IndexedStack(
+                      index: visibleIndex < 0 ? 0 : _index,
+                      children: [
+                        HomePage(
+                            onConnections: () => _navigate(3),
+                            onNavigate: _library,
+                            onProfile: () => _navigate(4)),
+                        NotesPage(onAsk: _ask),
+                        AiPage(
+                            key: ValueKey(_aiGeneration),
+                            initialScope: _aiScope,
+                            initialPrompt: _aiPrompt),
+                        const ConnectionsPage(),
+                        ProfilePage(
+                            onNavigate: _library,
+                            onConnections: () => _navigate(3))
+                      ])),
               floatingActionButton: _index == 0 || _index == 1
                   ? FloatingActionButton(
                       tooltip: 'New note',
@@ -94,8 +122,8 @@ class _MainShellState extends State<MainShell> {
                               indicatorColor: Colors.transparent,
                               selectedIndex:
                                   visibleIndex < 0 ? 0 : visibleIndex,
-                              onDestinationSelected: (i) => setState(
-                                  () => _index = destinations[i].index),
+                              onDestinationSelected: (i) =>
+                                  _navigate(destinations[i].index),
                               backgroundColor: theme.scaffoldBackgroundColor
                                   .withValues(alpha: .95),
                               destinations: [

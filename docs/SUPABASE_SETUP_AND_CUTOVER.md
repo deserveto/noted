@@ -4,7 +4,7 @@ The application uses Supabase Auth, PostgreSQL/RLS, Realtime, private Storage an
 
 ## Current source and live deployment
 
-As last verified on October 27, 2026, migrations 1–10 and all five functions are live. Migration `20261027000011_pr_review_concurrency.sql` and its updated AI/sharing functions were merged in [PR #50](https://github.com/deserveto/noted/pull/50), but have **not** been deployed in the last recorded environment state. It changes the AI RPC signature: apply migration 11 and deploy `noted-ai` and `note-sharing` as a coordinated release. AI calls fail closed if the old function runs against the new RPC during the deployment gap.
+On November 1, 2026, a read-only migration listing and dry run showed all 13 local migration versions applied to the linked project; all five functions were reported active. Active status and migration versions alone do not prove that deployed function sources match this checkout or that user journeys work. Migration 11 changes the AI RPC signature, and the workspace-aware AI function requires migration `20261101000002`; coordinate matching schema and function deployments.
 
 The combined UI/backend review is in [FULL_CHANGE_REVIEW.md](FULL_CHANGE_REVIEW.md); previous audit/remediation evidence is in [SUPABASE_REMEDIATION_REPORT.md](SUPABASE_REMEDIATION_REPORT.md). PR #50 is merged into `main`. The fully merged feature branches were subsequently removed after checking for unique commits and worktree/stash leftovers. Their source remains in Git history; branch deletion does not deploy the backend.
 
@@ -49,7 +49,7 @@ npx supabase db push --linked --dry-run
 npx supabase db push --linked
 ```
 
-There are **eleven versioned migrations** in the merged source: the original schema/RLS/storage schedules, audit corrections, guarded rollback, deletion claims, account write barriers, copy cleanup reservations/sweeps, atomic AI commits, the email queue cursor, and the PR-review concurrency correction. Never rewrite an already applied migration or reset the live database.
+There are **13 versioned migrations** in the current source, including the flashcard deck and personal workspace tables. Never rewrite an already applied migration or reset the live database.
 
 Functions validate user JWTs internally with `auth.getUser`; maintenance validates its cron secret. Deploy the matching sources:
 

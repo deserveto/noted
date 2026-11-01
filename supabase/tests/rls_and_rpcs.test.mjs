@@ -487,3 +487,28 @@ test('commit_note_revision persists calendar created_at edits and triggers guard
 
   await ctx.db.close();
 });
+
+test('flashcard decks are private and protected during account deletion', async () => {
+  const ctx = await createSupabaseTestDb();
+  await seedUsers(ctx);
+  await ctx.asUser(OWNER, tx => tx.query(`INSERT INTO public.ai_flashcard_decks(user_id,title,cards) VALUES ($1,'Private', '[{"q":"Q","a":"A"}]'::jsonb)`, [OWNER]));
+  const other = await ctx.asUser(EDITOR, tx => tx.query('SELECT * FROM public.ai_flashcard_decks'));
+  assert.equal(other.rows.length, 0);
+  await assert.rejects(() => ctx.asUser(EDITOR, tx => tx.query(`INSERT INTO public.ai_flashcard_decks(user_id,title,cards) VALUES ($1,'Forged','[{"q":"Q","a":"A"}]'::jsonb)`, [OWNER])));
+  await ctx.asService(tx => tx.query('SELECT public.audit_begin_account_deletion($1)', [OWNER]));
+  await assert.rejects(() => ctx.asUser(OWNER, tx => tx.query(`INSERT INTO public.ai_flashcard_decks(user_id,title,cards) VALUES ($1,'Late','[{"q":"Q","a":"A"}]'::jsonb)`, [OWNER])));
+  await ctx.db.close();
+});
+
+test('workspace assignments stay personal for shared notes and default on deletion', async () => {
+  const ctx = await createSupabaseTestDb(); await seedUsers(ctx);
+  await ctx.asService(tx => tx.query(`INSERT INTO public.notes(note_id,user_id,live_member_ids,live_roles) VALUES ('shared', $1, ARRAY[$2::uuid], jsonb_build_object($2::text,'view'))`, [OWNER, EDITOR]));
+  const workspace = await ctx.asUser(EDITOR, tx => tx.query(`INSERT INTO public.personal_workspaces(user_id,name) VALUES ($1,'Work') RETURNING id`, [EDITOR]));
+  const id = workspace.rows[0].id;
+  await ctx.asUser(EDITOR, tx => tx.query(`INSERT INTO public.personal_workspace_notes(user_id,note_id,workspace_id) VALUES ($1,'shared',$2)`, [EDITOR,id]));
+  assert.equal((await ctx.asUser(OWNER, tx => tx.query('SELECT * FROM public.personal_workspace_notes'))).rows.length, 0);
+  await assert.rejects(() => ctx.asUser(STRANGER, tx => tx.query(`INSERT INTO public.personal_workspace_notes(user_id,note_id,workspace_id) VALUES ($1,'shared',$2)`, [STRANGER,id])));
+  await ctx.asUser(EDITOR, tx => tx.query('DELETE FROM public.personal_workspaces WHERE id=$1', [id]));
+  assert.equal((await ctx.asUser(EDITOR, tx => tx.query('SELECT * FROM public.personal_workspace_notes'))).rows.length, 0);
+  await ctx.db.close();
+});

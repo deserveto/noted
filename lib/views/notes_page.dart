@@ -121,7 +121,7 @@ class _NotesPageState extends State<NotesPage> {
                   title: 'Your ',
                   accent: 'notes',
                   metadata:
-                      '${vm.totalNotes} notes · ${vm.totalFavorites} favorites'),
+                      '${pluralize(vm.totalNotes, 'note')} · ${pluralize(vm.totalFavorites, 'favorite')}'),
               const SizedBox(height: 20),
               TextField(
                   controller: _search,
@@ -187,7 +187,7 @@ class _NotesPageState extends State<NotesPage> {
                       Text(
                           results.isEmpty
                               ? 'Search all'
-                              : '${results.length} matches',
+                              : pluralize(results.length, 'match', 'matches'),
                           style: theme.textTheme.bodySmall)
                     ])),
               const SizedBox(height: 16),
@@ -196,67 +196,94 @@ class _NotesPageState extends State<NotesPage> {
                   decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    for (var i = 0; i < 3; i++)
-                      Expanded(
-                          child: Semantics(
-                              selected:
-                                  vm.libraryFilter == LibraryFilter.values[i],
-                              button: true,
-                              child: TextButton(
-                                  onPressed: () => vm.updateLibraryFilter(
-                                      LibraryFilter.values[i]),
-                                  style: TextButton.styleFrom(
-                                      backgroundColor: vm.libraryFilter ==
-                                              LibraryFilter.values[i]
-                                          ? theme.colorScheme.surface
-                                          : null,
-                                      foregroundColor: vm.libraryFilter ==
-                                              LibraryFilter.values[i]
-                                          ? theme.colorScheme.onSurface
-                                          : theme.colorScheme.onSurfaceVariant,
-                                      minimumSize: const Size(0, 44),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 4),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(9))),
-                                  child:
-                                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                    if (i > 0) ...[
-                                      ReferenceIcon(i == 1 ? 'star' : 'live',
-                                          size: 13,
-                                          filled: i == 1 &&
-                                              vm.libraryFilter ==
-                                                  LibraryFilter.favorites,
-                                          color: i == 1 &&
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    final reducedMotion =
+                        MediaQuery.disableAnimationsOf(context) ||
+                            context
+                                .watch<SettingsViewModel>()
+                                .settings
+                                .reduceMotion;
+                    return Stack(children: [
+                      AnimatedAlign(
+                        duration: reducedMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 220),
+                        curve: Curves.easeInOutCubic,
+                        alignment: Alignment(
+                            -1 + vm.libraryFilter.index.toDouble(), 0),
+                        child: Container(
+                          width: constraints.maxWidth / 3,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                        ),
+                      ),
+                      Row(children: [
+                        for (var i = 0; i < 3; i++)
+                          Expanded(
+                              child: Semantics(
+                                  selected: vm.libraryFilter ==
+                                      LibraryFilter.values[i],
+                                  button: true,
+                                  child: TextButton(
+                                      onPressed: () => vm.updateLibraryFilter(
+                                          LibraryFilter.values[i]),
+                                      style: TextButton.styleFrom(
+                                          foregroundColor: vm.libraryFilter ==
+                                                  LibraryFilter.values[i]
+                                              ? theme.colorScheme.onSurface
+                                              : theme
+                                                  .colorScheme.onSurfaceVariant,
+                                          minimumSize: const Size(0, 44),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 4),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(9))),
+                                      child:
+                                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                        if (i > 0) ...[
+                                          ReferenceIcon(
+                                              i == 1 ? 'star' : 'live',
+                                              size: 13,
+                                              filled: i == 1 &&
                                                   vm.libraryFilter ==
-                                                      LibraryFilter.favorites
-                                              ? AppColors.star
-                                              : null),
-                                      const SizedBox(width: 4)
-                                    ],
-                                    Flexible(
-                                        child: Text(
-                                            ['All', 'Favorites', 'Live'][i],
-                                            style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                        '${[
-                                          vm.totalNotes,
-                                          vm.totalFavorites,
-                                          vm.totalLive
-                                        ][i]}',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant))
-                                  ]))))
-                  ])),
+                                                      LibraryFilter.favorites,
+                                              color: i == 1 &&
+                                                      vm.libraryFilter ==
+                                                          LibraryFilter
+                                                              .favorites
+                                                  ? AppColors.star
+                                                  : null),
+                                          const SizedBox(width: 4)
+                                        ],
+                                        Flexible(
+                                            child: Text(
+                                                ['All', 'Favorites', 'Live'][i],
+                                                style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight:
+                                                        FontWeight.w500),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                            '${[
+                                              vm.totalNotes,
+                                              vm.totalFavorites,
+                                              vm.totalLive
+                                            ][i]}',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant))
+                                      ]))))
+                      ])
+                    ]);
+                  })),
               const SizedBox(height: 16),
               CategoryChips(
                   categories: vm.categories,
@@ -267,7 +294,7 @@ class _NotesPageState extends State<NotesPage> {
                 Expanded(
                     child: Semantics(
                         liveRegion: true,
-                        child: Text('${results.length} notes',
+                        child: Text(pluralize(results.length, 'note'),
                             style: theme.textTheme.bodySmall))),
                 TextButton(
                     onPressed: () => _sort(context),

@@ -187,17 +187,20 @@ export function createSupabaseNotedAiStore(admin: any): NotedAiStore {
       if (error) throw new AppError('internal', 'Could not clear AI history.');
     },
     async listAccessibleNotes(uid) {
-      const [owned, live, favs] = await Promise.all([
+      const [owned, live, favs, assignments] = await Promise.all([
         fetchAllPages(() => admin.from('notes').select('*').eq('user_id', uid).is('deleted_at', null), 'note_id'),
         fetchAllPages(() => admin.from('notes').select('*').contains('live_member_ids', [uid]).is('deleted_at', null), 'note_id'),
         fetchAllPages(() => admin.from('user_favorites').select('note_id').eq('user_id', uid), 'note_id'),
+        fetchAllPages(() => admin.from('personal_workspace_notes').select('note_id, workspace_id').eq('user_id', uid), 'note_id'),
       ]);
       const favIds = new Set((favs ?? []).map((f: any) => String(f.note_id)));
+      const workspaceIds = new Map<string, string>((assignments ?? []).map((a: any) => [String(a.note_id), String(a.workspace_id)]));
       const merged = new Map<string, ScopedNoteRecord>();
       for (const row of [...(owned ?? []), ...(live ?? [])]) {
         const id = String(row.note_id);
         merged.set(id, {
           id,
+          workspaceId: workspaceIds.get(id),
           title: row.title ?? '',
           content: row.content ?? '',
           category: row.category ?? 'Personal',
@@ -327,11 +330,17 @@ export async function handleNotedAiRequest(
 
     const candidates = scopedNotes(all, scope);
     const ranked = rankNotesForPrompt(candidates, prompt, 8);
-    const contextIds = new Set(ranked.map((n) => String(n.id)));
+    const scopeIds = new Set(candidates.map((note) => String(note.id)));
+    const selectionOnly = payload.selectionOnly === true;
+    const contextIds = new Set(selectionOnly ? [] : ranked.map((n) => String(n.id)));
     const selection =
       typeof payload.selection === 'string'
         ? payload.selection.slice(0, 12000)
         : '';
+
+    if (selectionOnly && !selection.trim()) {
+      throw new AppError('invalid-argument', 'Selected text is required for an inline edit.');
+    }
 
     if (selection) {
       const selectedId = String(payload.selectionNoteId ?? '').trim();
@@ -350,17 +359,30 @@ export async function handleNotedAiRequest(
       : crypto.randomUUID().replace(/-/g, '');
 
     const history: Array<{ role: string; content: string }> = [];
-    if (payload.chatId && settings.aiHistory !== false) {
+    if (!selectionOnly && payload.chatId && settings.aiHistory !== false) {
       const prior = await deps.store.listRecentChatMessages(caller.uid, chatId, 8);
       for (const m of prior) {
         if (!Array.isArray(m.context_dependencies) ||
-            m.context_dependencies.some((id) => !allowedIds.has(String(id)))) continue;
+            m.context_dependencies.some((id) =>
+              !allowedIds.has(String(id)) || !scopeIds.has(String(id)))) continue;
         const text =
           m.role === 'user'
             ? String(m.text ?? '')
             : Array.isArray(m.blocks)
               ? m.blocks
-                  .map((b: any) => b?.x || (Array.isArray(b?.items) ? b.items.join(' ') : ''))
+                  .map((b: any) => {
+                    if (typeof b?.x === 'string') return b.x;
+                    if (!Array.isArray(b?.items)) return '';
+                    return b.items.map((item: unknown) => {
+                      if (typeof item === 'string') return item;
+                      if (!item || typeof item !== 'object') return '';
+                      const value = item as Record<string, unknown>;
+                      if (b.t === 'cards') {
+                        return `${String(value.q ?? '')}\n${String(value.a ?? '')}`;
+                      }
+                      return String(value.x ?? '');
+                    }).filter(Boolean).join('\n');
+                  })
                   .join('\n')
               : '';
         if (text) {
@@ -401,12 +423,14 @@ export async function handleNotedAiRequest(
       'Allowed block shapes: {"t":"h","x":"Heading"}, {"t":"p","x":"Paragraph"}, {"t":"quote","x":"Excerpt"}, {"t":"ul","items":["Item"]}, {"t":"ol","items":["Step"]}, {"t":"todo","items":[{"x":"Task","done":false}]}, {"t":"cards","items":[{"q":"Question","a":"Answer"}]}.',
       lengthInstruction,
       toneInstruction,
+      'An explicitly requested tone takes precedence over the default tone preference; preserve the original meaning and facts.',
+      selectionOnly ? 'Edit only selectedText and return only its replacement. Do not expand it into surrounding content.' : '',
       requestedIntent,
     ]
       .filter(Boolean)
       .join(' ');
 
-    const noteContext = ranked.map((n) => ({
+    const noteContext = (selectionOnly ? [] : ranked).map((n) => ({
       id: n.id,
       title: n.title || 'Untitled',
       category: n.category || 'Personal',

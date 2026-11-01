@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:noted/models/note_model.dart';
 import 'package:noted/models/settings_model.dart';
@@ -9,6 +10,8 @@ import 'package:noted/viewmodels/note_viewmodel.dart';
 import 'package:noted/viewmodels/settings_viewmodel.dart';
 import 'package:noted/views/ai_page.dart';
 import 'package:noted/widgets/ai_blocks.dart';
+import 'package:noted/widgets/noted_ui.dart';
+import 'package:noted/widgets/reference_icon.dart';
 import 'package:noted/utils/app_theme.dart';
 
 class TestAi extends Fake implements AiRepository {
@@ -24,7 +27,8 @@ class TestAi extends Fake implements AiRepository {
       required String chatId,
       required String requestId,
       String? selection,
-      String? selectionNoteId}) {
+      String? selectionNoteId,
+      bool selectionOnly = false}) {
     this.scope = scope;
     return answer.future;
   }
@@ -46,7 +50,8 @@ class DelayedStopAi extends TestAi {
       required String chatId,
       required String requestId,
       String? selection,
-      String? selectionNoteId}) {
+      String? selectionNoteId,
+      bool selectionOnly = false}) {
     return requests++ == 0 ? answer.future : secondAnswer.future;
   }
 
@@ -94,6 +99,206 @@ Widget harness(TestAi repo, {AiSettings? preferences}) => MultiProvider(
                 initialNoteIds: const ['one'],
                 initialPrompt: 'Summarize this note')));
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+        'selected AI scope label has accessible contrast in ${dark ? 'dark' : 'light'} mode',
+        (tester) async {
+      final theme = dark ? AppTheme.dark : AppTheme.light;
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<NoteViewModel>(create: (_) => AiNotes()),
+          ChangeNotifierProvider<SettingsViewModel>(
+              create: (_) => AiSettings()),
+        ],
+        child: MaterialApp(theme: theme, home: AiPage(repository: TestAi())),
+      ));
+      final label = find.text('All notes').first;
+      final color = DefaultTextStyle.of(tester.element(label)).style.color!;
+      final bg = theme.chipTheme.selectedColor!;
+      final contrast =
+          (color.computeLuminance() + .05) / (bg.computeLuminance() + .05);
+      expect(contrast > 1 ? contrast : 1 / contrast, greaterThanOrEqualTo(4.5));
+    });
+  }
+  testWidgets(
+      'flashcard answers are saved as decks instead of inserted as text',
+      (tester) async {
+    final repo = TestAi();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NoteViewModel>(create: (_) => AiNotes()),
+        ChangeNotifierProvider<SettingsViewModel>(create: (_) => AiSettings()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: AiPage(
+            repository: repo,
+            compact: true,
+            initialNoteIds: const ['one'],
+            initialPrompt: 'Make flashcards',
+            onInsert: (_) {}),
+      ),
+    ));
+    await tester.pump();
+    repo.answer.complete({
+      'blocks': [
+        {
+          't': 'cards',
+          'items': [
+            {'q': 'Question', 'a': 'Answer'}
+          ]
+        }
+      ],
+      'sources': <String>[]
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Save to study decks'), findsOneWidget);
+    expect(find.text('Insert into note'), findsNothing);
+    expect(find.text('Save as note'), findsNothing);
+  });
+  testWidgets(
+      'selected text offers inline editing with a before and after preview',
+      (tester) async {
+    final repo = TestAi();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NoteViewModel>(create: (_) => AiNotes()),
+        ChangeNotifierProvider<SettingsViewModel>(create: (_) => AiSettings()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: AiPage(
+            repository: repo,
+            compact: true,
+            initialNoteIds: const ['one'],
+            selection: 'Original text',
+            selectionNoteId: 'one',
+            onInlineEdit: (_, __) => true),
+      ),
+    ));
+    await tester.tap(find.text('Rewrite'));
+    await tester.pump();
+    repo.answer.complete({
+      'blocks': [
+        {'t': 'p', 'x': 'Improved text'}
+      ],
+      'sources': <String>[]
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Before'), findsOneWidget);
+    expect(find.text('Original text'), findsOneWidget);
+    expect(find.text('After'), findsOneWidget);
+    expect(find.text('Improved text'), findsOneWidget);
+    expect(find.text('Replace'), findsOneWidget);
+    expect(find.text('Insert below'), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+  });
+  testWidgets('AI landing presents the four primary actions', (tester) async {
+    final repo = TestAi();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NoteViewModel>(create: (_) => AiNotes()),
+        ChangeNotifierProvider<SettingsViewModel>(create: (_) => AiSettings()),
+      ],
+      child: MaterialApp(theme: AppTheme.light, home: AiPage(repository: repo)),
+    ));
+    expect(find.text('Ask Noted'), findsWidgets);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'This note'))
+            .onSelected,
+        isNull);
+    expect(find.text('Summarize notes'), findsOneWidget);
+    expect(find.text('Extract action tasks'), findsOneWidget);
+    expect(find.text('Identify key decisions'), findsOneWidget);
+    expect(find.text('Generate flashcards'), findsOneWidget);
+  });
+  testWidgets('feedback buttons stay together on a narrow phone',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repo = TestAi();
+    await tester.pumpWidget(harness(repo));
+    await tester.pump();
+    repo.answer.complete({
+      'blocks': [
+        {'t': 'p', 'x': 'Answer'}
+      ],
+      'sources': <String>[],
+    });
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Not helpful'));
+    await tester.pumpAndSettle();
+    final up = tester.getRect(find.byTooltip('Helpful'));
+    final down = tester.getRect(find.byTooltip('Not helpful'));
+    expect(up.top, down.top);
+    expect(up.right, lessThanOrEqualTo(down.left));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('compact AI keeps conversation space above the keyboard',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    final repo = TestAi();
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NoteViewModel>(create: (_) => AiNotes()),
+        ChangeNotifierProvider<SettingsViewModel>(create: (_) => AiSettings()),
+      ],
+      child: MaterialApp(
+          theme: AppTheme.light,
+          home: Builder(
+              builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => notedSheet<void>(context,
+                          label: 'AI',
+                          tall: true,
+                          builder: (_) => AiPage(
+                              compact: true,
+                              repository: repo,
+                              initialNoteIds: const ['one'])),
+                      child: const Text('Open'),
+                    ),
+                  ))),
+    ));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final iconBeforeKeyboard = tester.getRect(find.descendant(
+        of: find.byTooltip('Send'), matching: find.byType(ReferenceIcon)));
+    expect(iconBeforeKeyboard.center.dx, greaterThan(340));
+    final paintedIcon = tester.getRect(find.descendant(
+        of: find.byTooltip('Send'), matching: find.byType(SvgPicture)));
+    // Test the painted icon, not only the accessible button bounds.
+    expect(paintedIcon.center.dx, greaterThan(340));
+    await tester.tap(find.text('Summarize this note'));
+    await tester.pump();
+    repo.answer.complete({
+      'blocks': [
+        {'t': 'p', 'x': 'A useful response'}
+      ],
+      'sources': <String>[],
+    });
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    final conversation = find
+        .descendant(of: find.byType(AiPage), matching: find.byType(ListView))
+        .first;
+    expect(tester.getSize(conversation).height, greaterThan(150));
+    final send = tester.getRect(find.byTooltip('Send'));
+    expect(send.right, greaterThan(340));
+    final sendIcon = tester.getRect(find.descendant(
+        of: find.byTooltip('Send'), matching: find.byType(ReferenceIcon)));
+    expect(sendIcon.center.dx, greaterThan(340));
+    expect(send.bottom, lessThanOrEqualTo(544));
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('late cancellation cannot discard a subsequent answer',
       (tester) async {
     final repo = DelayedStopAi();
@@ -206,5 +411,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Next question'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+  testWidgets('AI prompt field does not autofocus on open', (tester) async {
+    final repo = TestAi();
+    await tester.pumpWidget(harness(repo));
+    final textField = tester.widget<TextField>(find.byType(TextField).last);
+    expect(textField.autofocus, isFalse);
   });
 }

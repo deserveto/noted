@@ -113,7 +113,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
                                   style: theme.textTheme.titleLarge
                                       ?.copyWith(fontSize: 22)),
                               Text(
-                                  '${monthNotes.length} notes · $active active days',
+                                  '${pluralize(monthNotes.length, 'note')} · ${pluralize(active, 'active day')}',
                                   style: theme.textTheme.bodySmall)
                             ]))),
                 if (!sameDay(_selected, now) ||
@@ -163,7 +163,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
                             child: Semantics(
                                 selected: selected,
                                 label:
-                                    '${DateFormat.yMMMMd().format(d)}, $n notes${today ? ', today' : ''}',
+                                    '${DateFormat.yMMMMd().format(d)}, ${pluralize(n, 'note')}${today ? ', today' : ''}',
                                 excludeSemantics: true,
                                 child: SizedBox(
                                     height: 48,
@@ -247,7 +247,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
                       Text(
                           dayNotes.isEmpty
                               ? 'Nothing written'
-                              : '${dayNotes.length} notes created',
+                              : '${pluralize(dayNotes.length, 'note')} created',
                           style: theme.textTheme.bodySmall)
                     ])),
                 IconButton.filled(

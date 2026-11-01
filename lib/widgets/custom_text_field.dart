@@ -36,30 +36,33 @@ class CustomTextField extends StatelessWidget {
       Text(label,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       const SizedBox(height: 6),
-      TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          obscureText: obscureText,
-          maxLines: obscureText ? 1 : maxLines,
-          validator: validator,
-          onChanged: onChanged,
-          autofillHints: autofillHints,
-          textInputAction: textInputAction,
-          onFieldSubmitted: onFieldSubmitted,
-          style: const TextStyle(fontSize: 15),
-          decoration: InputDecoration(
-              hintText: hint,
-              filled: true,
-              fillColor: theme.colorScheme.surface,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: border,
-              enabledBorder: border,
-              focusedBorder: border.copyWith(
-                  borderSide: BorderSide(color: theme.colorScheme.primary)),
-              errorBorder: border.copyWith(
-                  borderSide: BorderSide(color: theme.colorScheme.error)),
-              prefixIcon: icon == null ? null : Icon(icon, size: 20)))
+      Semantics(
+          label: label,
+          textField: true,
+          child: TextFormField(
+              controller: controller,
+              keyboardType: keyboardType,
+              obscureText: obscureText,
+              maxLines: obscureText ? 1 : maxLines,
+              validator: validator,
+              onChanged: onChanged,
+              autofillHints: autofillHints,
+              textInputAction: textInputAction,
+              onFieldSubmitted: onFieldSubmitted,
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                  hintText: hint,
+                  filled: true,
+                  fillColor: theme.colorScheme.surface,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: border,
+                  enabledBorder: border,
+                  focusedBorder: border.copyWith(
+                      borderSide: BorderSide(color: theme.colorScheme.primary)),
+                  errorBorder: border.copyWith(
+                      borderSide: BorderSide(color: theme.colorScheme.error)),
+                  prefixIcon: icon == null ? null : Icon(icon, size: 20))))
     ]);
   }
 }

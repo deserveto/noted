@@ -100,7 +100,7 @@ class HomePage extends StatelessWidget {
                           Expanded(
                               child: Text.rich(
                                   TextSpan(
-                                      text: '$weekCount notes',
+                                      text: pluralize(weekCount, 'note'),
                                       style: TextStyle(
                                           fontWeight: FontWeight.w600,
                                           color: theme.colorScheme.onSurface),
@@ -133,7 +133,7 @@ class HomePage extends StatelessWidget {
                                   .length;
                           return Semantics(
                               label:
-                                  '${DateFormat.yMMMMEEEEd().format(d)}, $n notes',
+                                  '${DateFormat.yMMMMEEEEd().format(d)}, ${pluralize(n, 'note')}',
                               child: TextButton(
                                   style: TextButton.styleFrom(
                                       padding: EdgeInsets.zero,
@@ -305,41 +305,45 @@ class HomePage extends StatelessWidget {
                         if (i > 0)
                           VerticalDivider(color: theme.dividerColor, width: 1),
                         Expanded(
-                            child: InkWell(
-                                onTap: () => onNavigate
-                                    ?.call(['All', 'Favorites', 'Live'][i]),
+                            child: Material(
+                                color: Colors.transparent,
+                                clipBehavior: Clip.antiAlias,
                                 borderRadius: BorderRadius.circular(18),
-                                child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 14),
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                              '${[
-                                                vm.totalNotes,
-                                                vm.totalFavorites,
-                                                vm.totalLive
-                                              ][i]}',
-                                              style: theme
-                                                  .textTheme.headlineMedium
-                                                  ?.copyWith(fontSize: 24)),
-                                          const SizedBox(height: 2),
-                                          Row(children: [
-                                            Flexible(
-                                                child: Text(
-                                                    [
-                                                      'All notes',
-                                                      'Favorites',
-                                                      'Live'
-                                                    ][i],
-                                                    style: theme
-                                                        .textTheme.bodySmall)),
-                                            const ReferenceIcon('next',
-                                                size: 12)
-                                          ])
-                                        ])))),
+                                child: InkWell(
+                                    onTap: () => onNavigate
+                                        ?.call(['All', 'Favorites', 'Live'][i]),
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14, vertical: 14),
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                  '${[
+                                                    vm.totalNotes,
+                                                    vm.totalFavorites,
+                                                    vm.totalLive
+                                                  ][i]}',
+                                                  style: theme
+                                                      .textTheme.headlineMedium
+                                                      ?.copyWith(fontSize: 24)),
+                                              const SizedBox(height: 2),
+                                              Row(children: [
+                                                Flexible(
+                                                    child: Text(
+                                                        [
+                                                          'All notes',
+                                                          'Favorites',
+                                                          'Live'
+                                                        ][i],
+                                                        style: theme.textTheme
+                                                            .bodySmall)),
+                                                const ReferenceIcon('next',
+                                                    size: 12)
+                                              ])
+                                            ]))))),
                       ]
                     ]))),
                 SectionHeader('Recent notes',

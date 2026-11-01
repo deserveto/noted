@@ -242,17 +242,6 @@ class ProfilePage extends StatelessWidget {
                                   fontSize: 13, color: theme.hintColor)))
                     ]))),
           ],
-          const SizedBox(height: 32),
-          Container(
-              decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  border: Border.all(color: theme.dividerColor),
-                  borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                  leading: const ReferenceIcon('gear', size: 18),
-                  title: const Text('Settings', style: TextStyle(fontSize: 15)),
-                  trailing: const ReferenceIcon('next', size: 16),
-                  onTap: openSettings)),
         ])));
   }
 }

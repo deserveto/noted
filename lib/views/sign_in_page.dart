@@ -72,33 +72,41 @@ class _SignInPageState extends State<SignInPage> {
                                   child: Form(
                                       key: _formKey,
                                       child: Column(children: [
-                                        CustomTextField(
-                                            controller: _email,
+                                        Semantics(
                                             label: 'Email',
-                                            keyboardType:
-                                                TextInputType.emailAddress,
-                                            autofillHints: const [
-                                              AutofillHints.email
-                                            ],
-                                            textInputAction:
-                                                TextInputAction.next,
-                                            validator: Validators.email),
+                                            textField: true,
+                                            child: CustomTextField(
+                                                controller: _email,
+                                                label: 'Email',
+                                                hint: 'Your email address',
+                                                keyboardType:
+                                                    TextInputType.emailAddress,
+                                                autofillHints: const [
+                                                  AutofillHints.email
+                                                ],
+                                                textInputAction:
+                                                    TextInputAction.next,
+                                                validator: Validators.email)),
                                         const SizedBox(height: 16),
-                                        CustomTextField(
-                                            controller: _password,
+                                        Semantics(
                                             label: 'Password',
-                                            hint: 'At least 6 characters',
-                                            obscureText: true,
-                                            autofillHints: const [
-                                              AutofillHints.password
-                                            ],
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            onFieldSubmitted: (_) => _submit(),
-                                            validator: (v) => v == null ||
-                                                    v.length < 6
-                                                ? 'Use at least 6 characters.'
-                                                : null),
+                                            textField: true,
+                                            child: CustomTextField(
+                                                controller: _password,
+                                                label: 'Password',
+                                                hint: 'At least 6 characters',
+                                                obscureText: true,
+                                                autofillHints: const [
+                                                  AutofillHints.password
+                                                ],
+                                                textInputAction:
+                                                    TextInputAction.done,
+                                                onFieldSubmitted: (_) =>
+                                                    _submit(),
+                                                validator: (v) => v == null ||
+                                                        v.length < 6
+                                                    ? 'Use at least 6 characters.'
+                                                    : null)),
                                         if (auth.errorMessage != null) ...[
                                           const SizedBox(height: 16),
                                           InlineError(auth.errorMessage!)
@@ -175,11 +183,15 @@ class _SignInPageState extends State<SignInPage> {
                                 const Text(
                                     'We’ll send a password reset link to your email.'),
                                 const SizedBox(height: 20),
-                                CustomTextField(
-                                    controller: email,
+                                Semantics(
                                     label: 'Email',
-                                    keyboardType: TextInputType.emailAddress,
-                                    validator: Validators.email),
+                                    textField: true,
+                                    child: CustomTextField(
+                                        controller: email,
+                                        label: 'Email',
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        validator: Validators.email)),
                                 if (error != null) ...[
                                   const SizedBox(height: 12),
                                   InlineError(error!)

@@ -14,6 +14,7 @@ import '../services/collaboration_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/markdown_formatter.dart';
 import '../utils/document_codec.dart';
+import '../utils/inline_ai_edit.dart';
 import '../utils/collaborative_document.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
@@ -27,7 +28,9 @@ import '../widgets/live_metadata.dart';
 import '../repositories/profile_repository.dart';
 import '../widgets/noted_ui.dart' show notedSheet;
 import '../widgets/reference_icon.dart';
+import '../widgets/inline_ai_popup.dart';
 import 'ai_page.dart';
+import 'workspaces_page.dart';
 
 class AddEditNotePage extends StatefulWidget {
   const AddEditNotePage(
@@ -44,8 +47,10 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   late final NoteRepository _repository;
   final _title = TextEditingController();
   final _body = TextEditingController();
+  final _titleFocus = FocusNode();
   final _bodyFocus = FocusNode();
   final _rich = quill.QuillController.basic();
+  final _editorKey = GlobalKey<quill.EditorState>();
   final _richScroll = ScrollController();
   String _richBaseline = '';
   String? _documentError;
@@ -83,6 +88,9 @@ class _AddEditNotePageState extends State<AddEditNotePage>
     _title.addListener(_changed);
     _body.addListener(_changed);
     _rich.addListener(_richChanged);
+    _titleFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
     _bodyFocus.addListener(() {
       if (mounted) setState(() {});
     });
@@ -129,9 +137,15 @@ class _AddEditNotePageState extends State<AddEditNotePage>
 
   void _loadText(NoteModel note) {
     _loadingText = true;
-    _title.text = note.title;
+    final sameDocument = _richBaseline.isNotEmpty &&
+        _documentError == null &&
+        _body.text == note.content;
+    final wasIgnoringFocus = _rich.ignoreFocusOnTextChange;
+    _rich.ignoreFocusOnTextChange = true;
+    if (_title.text != note.title) _title.text = note.title;
     _body.text = note.content;
     try {
+      if (sameDocument) return;
       final previous = _rich.document.toDelta();
       final selection = _rich.selection;
       final document = DocumentCodec.decode(note.content);
@@ -150,8 +164,10 @@ class _AddEditNotePageState extends State<AddEditNotePage>
       _documentError = null;
     } catch (error) {
       _documentError = 'This document could not be opened safely: $error';
+    } finally {
+      _rich.ignoreFocusOnTextChange = wasIgnoringFocus;
+      _loadingText = false;
     }
-    _loadingText = false;
   }
 
   void _richChanged() {
@@ -318,7 +334,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
     if (user != null) {
       _repository
           .updatePresence(_note!.noteId, user.uid, user.name,
-              typing: _bodyFocus.hasFocus && _dirty)
+              typing: (_titleFocus.hasFocus || _bodyFocus.hasFocus) && _dirty)
           .catchError((Object _) {});
     }
   }
@@ -459,6 +475,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
     _richScroll.dispose();
     _title.dispose();
     _body.dispose();
+    _titleFocus.dispose();
     _bodyFocus.dispose();
     super.dispose();
   }
@@ -473,7 +490,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .length;
-    final writing = _bodyFocus.hasFocus;
+    final writing = _titleFocus.hasFocus || _bodyFocus.hasFocus;
     _rich.readOnly = !_editable;
     return PopScope(
         canPop: _canPop,
@@ -515,7 +532,9 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                   ? [
                       TextButton(
                           onPressed: () {
+                            _titleFocus.unfocus();
                             _bodyFocus.unfocus();
+                            FocusScope.of(context).unfocus();
                             _save();
                           },
                           child: const Text('Done'))
@@ -601,8 +620,36 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                                           backgroundColor:
                                               _noteColor(note.color)),
                                       label: Text(note.category,
-                                          style: const TextStyle(fontSize: 13)),
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              color: scheme.onSurface)),
                                       onPressed: _editable ? _category : null),
+                                  if (note.noteId.isNotEmpty)
+                                    ActionChip(
+                                        label: const Text('Workspace'),
+                                        onPressed: () async {
+                                          final workspace = await pickWorkspace(
+                                              context,
+                                              noteId: note.noteId);
+                                          if (workspace == null) return;
+                                          try {
+                                            await WorkspaceRepository()
+                                                .assign(note.noteId, workspace);
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(const SnackBar(
+                                                      content: Text(
+                                                          'Workspace updated')));
+                                            }
+                                          } catch (_) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(const SnackBar(
+                                                      content: Text(
+                                                          'Could not update workspace.')));
+                                            }
+                                          }
+                                        }),
                                   TextButton(
                                       onPressed: _editable ? _date : null,
                                       child: Text(
@@ -619,82 +666,93 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                                   if (note.isLive) LiveMetadata(note: note),
                                 ]),
                           const SizedBox(height: 10),
-                          TextField(
-                              controller: _title,
-                              readOnly: !_editable,
-                              autocorrect: settings.spellcheck,
-                              enableSuggestions: settings.spellcheck,
-                              maxLines: null,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) => _bodyFocus.requestFocus(),
-                              style: const TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -.75,
-                                  height: 1.2),
-                              decoration: const InputDecoration(
-                                  hintText: 'Untitled',
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  filled: false,
-                                  contentPadding: EdgeInsets.zero)),
+                          Semantics(
+                              label: 'Note title',
+                              textField: true,
+                              child: TextField(
+                                  controller: _title,
+                                  focusNode: _titleFocus,
+                                  readOnly: !_editable,
+                                  autocorrect: settings.spellcheck,
+                                  enableSuggestions: settings.spellcheck,
+                                  maxLines: null,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _bodyFocus.requestFocus(),
+                                  style: const TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: -.75,
+                                      height: 1.2),
+                                  decoration: const InputDecoration(
+                                      hintText: 'Untitled',
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      filled: false,
+                                      contentPadding: EdgeInsets.zero))),
                           const SizedBox(height: 20),
                           if (_documentError != null)
                             Text(_documentError!,
                                 style: TextStyle(color: scheme.error))
                           else
-                            quill.QuillEditor.basic(
-                              controller: _rich,
-                              focusNode: _bodyFocus,
-                              scrollController: _richScroll,
-                              config: quill.QuillEditorConfig(
-                                embedBuilders: const [RichNoteEmbed()],
-                                unknownEmbedBuilder: const RichNoteEmbed(),
-                                scrollable: false,
-                                autoFocus: false,
-                                placeholder: 'Start writing…',
-                                padding: EdgeInsets.zero,
-                                expands: false,
-                                minHeight: 220,
-                                enableInteractiveSelection: true,
-                                enableSelectionToolbar: true,
-                                customStyles: quill.DefaultStyles(
-                                  h3: const quill.DefaultTextBlockStyle(
-                                      TextStyle(
-                                          fontFamily: 'DM Sans',
-                                          fontSize: 19,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: -.19),
-                                      quill.HorizontalSpacing(0, 0),
-                                      quill.VerticalSpacing(0, 9),
-                                      quill.VerticalSpacing(0, 0),
-                                      null),
-                                  quote: quill.DefaultTextBlockStyle(
-                                      TextStyle(
-                                          fontFamily: 'Newsreader',
-                                          fontStyle: FontStyle.italic,
-                                          fontSize: 19,
-                                          height: 1.7,
-                                          color: scheme.onSurfaceVariant),
-                                      const quill.HorizontalSpacing(14, 0),
-                                      const quill.VerticalSpacing(0, 9),
-                                      const quill.VerticalSpacing(0, 0),
-                                      BoxDecoration(
-                                          border: Border(
-                                              left: BorderSide(
-                                                  color: scheme.primary,
-                                                  width: 3)))),
-                                  paragraph: quill.DefaultTextBlockStyle(
-                                      TextStyle(
-                                          fontFamily: 'DM Sans',
-                                          fontSize: settings.textSize,
-                                          height: 1.7,
-                                          color: scheme.onSurface),
-                                      const quill.HorizontalSpacing(0, 0),
-                                      const quill.VerticalSpacing(0, 9),
-                                      const quill.VerticalSpacing(0, 0),
-                                      null),
+                            Semantics(
+                              label: 'Note content',
+                              multiline: true,
+                              textField: true,
+                              child: quill.QuillEditor.basic(
+                                controller: _rich,
+                                focusNode: _bodyFocus,
+                                scrollController: _richScroll,
+                                config: quill.QuillEditorConfig(
+                                  editorKey: _editorKey,
+                                  embedBuilders: const [RichNoteEmbed()],
+                                  unknownEmbedBuilder: const RichNoteEmbed(),
+                                  scrollable: false,
+                                  autoFocus: false,
+                                  placeholder: 'Start writing…',
+                                  padding: EdgeInsets.zero,
+                                  expands: false,
+                                  minHeight: 220,
+                                  enableInteractiveSelection: true,
+                                  enableSelectionToolbar: true,
+                                  customStyles: quill.DefaultStyles(
+                                    h3: quill.DefaultTextBlockStyle(
+                                        TextStyle(
+                                            fontFamily: 'DM Sans',
+                                            fontSize: 19,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: -.19,
+                                            color: scheme.onSurface),
+                                        const quill.HorizontalSpacing(0, 0),
+                                        const quill.VerticalSpacing(0, 9),
+                                        const quill.VerticalSpacing(0, 0),
+                                        null),
+                                    quote: quill.DefaultTextBlockStyle(
+                                        TextStyle(
+                                            fontFamily: 'Newsreader',
+                                            fontStyle: FontStyle.italic,
+                                            fontSize: 19,
+                                            height: 1.7,
+                                            color: scheme.onSurfaceVariant),
+                                        const quill.HorizontalSpacing(14, 0),
+                                        const quill.VerticalSpacing(0, 9),
+                                        const quill.VerticalSpacing(0, 0),
+                                        BoxDecoration(
+                                            border: Border(
+                                                left: BorderSide(
+                                                    color: scheme.primary,
+                                                    width: 3)))),
+                                    paragraph: quill.DefaultTextBlockStyle(
+                                        TextStyle(
+                                            fontFamily: 'DM Sans',
+                                            fontSize: settings.textSize,
+                                            height: 1.7,
+                                            color: scheme.onSurface),
+                                        const quill.HorizontalSpacing(0, 0),
+                                        const quill.VerticalSpacing(0, 9),
+                                        const quill.VerticalSpacing(0, 0),
+                                        null),
+                                  ),
                                 ),
                               ),
                             ),
@@ -849,28 +907,45 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                           ChoiceChip(
                               label: Text(c),
                               selected: c == _note!.category,
+                              labelStyle: TextStyle(
+                                  color: c == _note!.category
+                                      ? Theme.of(ctx).colorScheme.onPrimary
+                                      : Theme.of(ctx).colorScheme.onSurface,
+                                  fontWeight: FontWeight.w500),
+                              selectedColor: Theme.of(ctx).colorScheme.primary,
+                              backgroundColor:
+                                  Theme.of(ctx).colorScheme.surface,
+                              checkmarkColor:
+                                  Theme.of(ctx).colorScheme.onPrimary,
+                              side: BorderSide(
+                                  color: c == _note!.category
+                                      ? Theme.of(ctx).colorScheme.primary
+                                      : Theme.of(ctx).colorScheme.outline),
                               onSelected: (_) => Navigator.pop(ctx, c))
                       ]),
                       const SizedBox(height: 12),
-                      TextField(
-                          controller: controller,
-                          autofocus: false,
-                          decoration: InputDecoration(
-                              hintText: 'Add a category',
-                              suffixIcon: IconButton(
-                                  tooltip: 'Add category',
-                                  onPressed: () {
-                                    if (controller.text.trim().isNotEmpty) {
-                                      Navigator.pop(
-                                          ctx, controller.text.trim());
-                                    }
-                                  },
-                                  icon: const ReferenceIcon('plus'))),
-                          onSubmitted: (v) {
-                            if (v.trim().isNotEmpty) {
-                              Navigator.pop(ctx, v.trim());
-                            }
-                          }),
+                      Semantics(
+                          label: 'Add a category',
+                          textField: true,
+                          child: TextField(
+                              controller: controller,
+                              autofocus: false,
+                              decoration: InputDecoration(
+                                  hintText: 'Add a category',
+                                  suffixIcon: IconButton(
+                                      tooltip: 'Add category',
+                                      onPressed: () {
+                                        if (controller.text.trim().isNotEmpty) {
+                                          Navigator.pop(
+                                              ctx, controller.text.trim());
+                                        }
+                                      },
+                                      icon: const ReferenceIcon('plus'))),
+                              onSubmitted: (v) {
+                                if (v.trim().isNotEmpty) {
+                                  Navigator.pop(ctx, v.trim());
+                                }
+                              })),
                     ]))));
     controller.dispose();
     if (value != null && mounted) _changeNote(_note!.copyWith(category: value));
@@ -924,36 +999,124 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   }
 
   Future<void> _ai() async {
+    final selection = _rich.selection;
+    Offset? anchor;
+    final renderEditor = _editorKey.currentState?.renderEditor;
+    if (selection.isValid && !selection.isCollapsed && renderEditor != null) {
+      final endpoints = renderEditor.getEndpointsForSelection(selection);
+      if (endpoints.isNotEmpty) {
+        anchor = renderEditor.localToGlobal(endpoints.last.point);
+      }
+    }
+    final initialDocument = DocumentCodec.encode(_rich.document);
+    FocusScope.of(context).unfocus();
     if (!await _save() || !mounted) return;
     if (_note!.noteId.isEmpty) {
       setState(() => _error = 'Write something in this note before asking AI.');
       return;
     }
-    final selection = _rich.selection;
+    if (selection.isValid &&
+        !selection.isCollapsed &&
+        (DocumentCodec.encode(_rich.document) != initialDocument ||
+            _rich.selection != selection)) {
+      setState(() => _error = 'The note changed. Select the text again.');
+      return;
+    }
     final plain = _rich.document.toPlainText();
     final selected = selection.isValid && !selection.isCollapsed
         ? plain.substring(selection.start.clamp(0, plain.length),
             selection.end.clamp(0, plain.length))
         : null;
-    await notedSheet<void>(context,
-        label: 'Noted AI',
-        tall: true,
-        builder: (_) => AiPage(
-              compact: true,
-              initialNoteIds: [_note!.noteId],
-              selection: selected,
-              selectionNoteId: _note!.noteId,
-              onInsert: !_editable
-                  ? null
-                  : (markdown) {
-                      final appended = DocumentCodec.fromMarkdown(markdown);
-                      _rich.document = quill.Document.fromJson([
-                        ..._rich.document.toDelta().toJson(),
-                        ...appended.toDelta().toJson(),
-                      ]);
-                      _richChanged();
-                    },
-            ));
+    final selectionDocument = DocumentCodec.encode(_rich.document);
+    _titleFocus.canRequestFocus = false;
+    _bodyFocus.canRequestFocus = false;
+    try {
+      if (selected != null && selected.isNotEmpty) {
+        await showGeneralDialog<void>(
+          context: context,
+          barrierDismissible: true,
+          barrierLabel: 'Close inline AI',
+          barrierColor: Colors.black26,
+          pageBuilder: (dialogContext, _, __) {
+            final media = MediaQuery.of(dialogContext);
+            final width = (media.size.width - 32).clamp(0.0, 400.0);
+            final height = (media.size.height * .55).clamp(0.0, 440.0);
+            final minTop = media.padding.top + 12;
+            final maxTop =
+                (media.size.height - media.padding.bottom - height - 12)
+                    .clamp(minTop, double.infinity);
+            final anchorY = anchor?.dy ?? media.size.height / 2;
+            final below = anchorY + 16;
+            final top = (below <= maxTop ? below : anchorY - height - 16)
+                .clamp(minTop, maxTop);
+            final left = ((anchor?.dx ?? media.size.width / 2) - width / 2)
+                .clamp(
+                    16.0,
+                    (media.size.width - width - 16)
+                        .clamp(16.0, double.infinity));
+            return Stack(children: [
+              Positioned(
+                left: left,
+                top: top,
+                width: width,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: height),
+                  child: InlineAiPopup(
+                    selection: selected,
+                    noteId: _note!.noteId,
+                    onApply: !_editable
+                        ? null
+                        : (markdown, replace) =>
+                            _editable &&
+                            applyInlineAiEdit(
+                                _rich, selection, selectionDocument, markdown,
+                                replace: replace),
+                  ),
+                ),
+              ),
+            ]);
+          },
+        );
+        return;
+      }
+      await notedSheet<void>(context,
+          label: 'Noted AI',
+          tall: true,
+          builder: (_) => AiPage(
+                compact: true,
+                initialNoteIds: [_note!.noteId],
+                selection: selected,
+                selectionNoteId: _note!.noteId,
+                onInlineEdit: !_editable || selected == null
+                    ? null
+                    : (markdown, replace) =>
+                        _editable &&
+                        applyInlineAiEdit(
+                            _rich, selection, selectionDocument, markdown,
+                            replace: replace),
+                onInsert: !_editable
+                    ? null
+                    : (markdown) {
+                        final appended = DocumentCodec.fromMarkdown(markdown);
+                        final wasIgnoringFocus = _rich.ignoreFocusOnTextChange;
+                        _rich.ignoreFocusOnTextChange = true;
+                        try {
+                          _rich.document = quill.Document.fromJson([
+                            ..._rich.document.toDelta().toJson(),
+                            ...appended.toDelta().toJson(),
+                          ]);
+                        } finally {
+                          _rich.ignoreFocusOnTextChange = wasIgnoringFocus;
+                        }
+                        _richChanged();
+                      },
+              ));
+    } finally {
+      if (mounted) {
+        _titleFocus.canRequestFocus = true;
+        _bodyFocus.canRequestFocus = true;
+      }
+    }
   }
 
   Future<void> _attach(String type) async {

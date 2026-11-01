@@ -154,6 +154,7 @@ export function draftForCopy(input: Record<string, unknown> = {}): DraftCopy {
 
 export interface ScopedNoteRecord {
   id: string;
+  workspaceId?: string;
   title?: string;
   content?: string;
   category?: string;
@@ -170,6 +171,10 @@ export function scopedNotes<T extends ScopedNoteRecord>(
   const kind = scope?.kind ?? 'all';
   if (kind === 'fav') return all.filter((n) => Boolean(n.isFavorite));
   if (kind === 'cat') return all.filter((n) => n.category === scope.cat);
+  if (kind === 'workspace') {
+    const id = typeof scope.id === 'string' ? scope.id : '';
+    return all.filter((n) => (n.workspaceId ?? 'default') === id);
+  }
   if (kind === 'notes') {
     const rawIds = Array.isArray(scope.ids) ? scope.ids : [];
     const ids = new Set(rawIds.slice(0, 100).map(String));
@@ -318,6 +323,51 @@ export function exportNotes(
       html: htmlFromContent(n.content),
       plainText: plainTextFromContent(n.content),
     })),
+  };
+}
+
+export interface AccountBackupCollections {
+  workspaces: Array<Record<string, unknown>>;
+  workspaceAssignments: Array<Record<string, unknown>>;
+  studyDecks: Array<Record<string, unknown>>;
+  unavailableSections: string[];
+}
+
+const BACKUP_SECTIONS = [
+  'workspaces',
+  'workspaceAssignments',
+  'studyDecks',
+] as const;
+
+export function exportAccountBackup(
+  notes: ScopedNoteRecord[],
+  collections: AccountBackupCollections,
+  exportedAt: string = new Date().toISOString(),
+) {
+  const unavailableSections = BACKUP_SECTIONS.filter((section) =>
+    collections.unavailableSections.includes(section),
+  );
+  return {
+    ...exportNotes(notes, exportedAt),
+    formatVersion: 2,
+    workspaces: collections.workspaces.map((workspace) => ({
+      id: String(workspace.id ?? ''),
+      name: String(workspace.name ?? ''),
+    })),
+    workspaceAssignments: collections.workspaceAssignments.map((assignment) => ({
+      noteId: String(assignment.note_id ?? assignment.noteId ?? ''),
+      workspaceId: String(assignment.workspace_id ?? assignment.workspaceId ?? ''),
+    })),
+    studyDecks: collections.studyDecks.map((deck) => ({
+      id: String(deck.id ?? ''),
+      title: String(deck.title ?? 'Flashcards'),
+      cards: Array.isArray(deck.cards) ? deck.cards : [],
+      sourceNoteId: deck.source_note_id ?? deck.sourceNoteId ?? null,
+      createdAt: deck.created_at ?? deck.createdAt ?? null,
+      updatedAt: deck.updated_at ?? deck.updatedAt ?? null,
+    })),
+    exportCollectionsComplete: unavailableSections.length === 0,
+    unavailableSections,
   };
 }
 

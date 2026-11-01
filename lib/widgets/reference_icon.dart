@@ -92,6 +92,12 @@ class ReferenceIcon extends StatelessWidget {
         '<path d="M7 13.5v-9H4.5v9zM7 13.5l4 7a2 2 0 0 0 2.5-2.3L13 14.5h5.3a2 2 0 0 0 2-2.4l-1.3-6a2 2 0 0 0-2-1.6H7"/>',
     'refresh':
         '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4"/>',
+    'shorten': '<path d="M4 8h16M4 15h10"/>',
+    'downArrow': '<path d="M12 4v15M6.5 13.5 12 19l5.5-5.5"/>',
+    'sliders':
+        '<path d="M4 6h5M13 6h7M4 12h9M17 12h3M4 18h3M11 18h9"/><circle cx="11" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>',
+    'checkSquare':
+        '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2.5 2.5L16.5 9"/>',
     'cards':
         '<rect x="3.5" y="6.5" width="13" height="13" rx="2.5"/><path d="M8 3.5h10a2.5 2.5 0 0 1 2.5 2.5v10"/>',
     'layers':

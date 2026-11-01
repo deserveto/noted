@@ -72,49 +72,60 @@ class _SignUpPageState extends State<SignUpPage> {
                                   child: Form(
                                       key: _formKey,
                                       child: Column(children: [
-                                        CustomTextField(
-                                            controller: _name,
+                                        Semantics(
                                             label: 'Name',
-                                            hint: 'Your name',
-                                            autofillHints: const [
-                                              AutofillHints.name
-                                            ],
-                                            textInputAction:
-                                                TextInputAction.next,
-                                            validator: (v) => v
-                                                        ?.trim()
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? null
-                                                : 'Tell us what to call you.'),
+                                            textField: true,
+                                            child: CustomTextField(
+                                                controller: _name,
+                                                label: 'Name',
+                                                hint: 'Your name',
+                                                autofillHints: const [
+                                                  AutofillHints.name
+                                                ],
+                                                textInputAction:
+                                                    TextInputAction.next,
+                                                validator: (v) => v
+                                                            ?.trim()
+                                                            .isNotEmpty ==
+                                                        true
+                                                    ? null
+                                                    : 'Tell us what to call you.')),
                                         const SizedBox(height: 16),
-                                        CustomTextField(
-                                            controller: _email,
+                                        Semantics(
                                             label: 'Email',
-                                            keyboardType:
-                                                TextInputType.emailAddress,
-                                            autofillHints: const [
-                                              AutofillHints.email
-                                            ],
-                                            textInputAction:
-                                                TextInputAction.next,
-                                            validator: Validators.email),
+                                            textField: true,
+                                            child: CustomTextField(
+                                                controller: _email,
+                                                label: 'Email',
+                                                hint: 'Your email address',
+                                                keyboardType:
+                                                    TextInputType.emailAddress,
+                                                autofillHints: const [
+                                                  AutofillHints.email
+                                                ],
+                                                textInputAction:
+                                                    TextInputAction.next,
+                                                validator: Validators.email)),
                                         const SizedBox(height: 16),
-                                        CustomTextField(
-                                            controller: _password,
+                                        Semantics(
                                             label: 'Password',
-                                            hint: 'At least 6 characters',
-                                            obscureText: true,
-                                            autofillHints: const [
-                                              AutofillHints.newPassword
-                                            ],
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            onFieldSubmitted: (_) => _submit(),
-                                            validator: (v) => v == null ||
-                                                    v.length < 6
-                                                ? 'Use at least 6 characters.'
-                                                : null),
+                                            textField: true,
+                                            child: CustomTextField(
+                                                controller: _password,
+                                                label: 'Password',
+                                                hint: 'At least 6 characters',
+                                                obscureText: true,
+                                                autofillHints: const [
+                                                  AutofillHints.newPassword
+                                                ],
+                                                textInputAction:
+                                                    TextInputAction.done,
+                                                onFieldSubmitted: (_) =>
+                                                    _submit(),
+                                                validator: (v) => v == null ||
+                                                        v.length < 6
+                                                    ? 'Use at least 6 characters.'
+                                                    : null)),
                                         if (auth.errorMessage != null) ...[
                                           const SizedBox(height: 16),
                                           InlineError(auth.errorMessage!)

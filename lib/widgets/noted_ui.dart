@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/media_url_resolver.dart';
 import '../utils/app_colors.dart';
 import 'reference_icon.dart';
+export '../utils/pluralize.dart';
 
 String initials(String name) => name
     .trim()
@@ -296,7 +297,9 @@ Future<T?> notedSheet<T>(BuildContext context,
                     bottom: MediaQuery.viewInsetsOf(context).bottom),
                 child: tall
                     ? SizedBox(
-                        height: MediaQuery.sizeOf(context).height * .85,
+                        height: (MediaQuery.sizeOf(context).height * .85 -
+                                MediaQuery.viewInsetsOf(context).bottom)
+                            .clamp(0.0, double.infinity),
                         child: builder(context))
                     : builder(context))));
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0](https://github.com/deserveto/noted/releases/tag/v2.0.0) — 2026-10-28 · Pre-release
+## [2.0.0](https://github.com/deserveto/noted/releases/tag/v2.0.0) — release candidate
 
 A complete interface rebuild and backend transition for Noted, merged in [PR #50](https://github.com/deserveto/noted/pull/50).
 
@@ -17,6 +17,8 @@ A complete interface rebuild and backend transition for Noted, merged in [PR #50
 - Added revision-checked collaborative editing, edit/view roles, expiring presence, member revocation, and independent copy sharing.
 - Added per-account offline caching and an outbox that preserves recovery drafts and replays pending edits.
 - Added note-scoped AI, validated sources, structured answers/flashcards, cancellation, feedback, and conversation history.
+- Added personal workspaces, saved study decks, and selected-text AI editing. Prior chat context is restricted to the current note scope.
+- Extended JSON exports to include workspaces, note assignments, and study decks when available. Attachment files and automatic restore are not included.
 - Added in-app activity, quiet hours, email-provider integration, scheduled recaps, and claimed trash/media cleanup.
 - Added optional read-only Firebase export, state-preserving import, parity validation, and guarded database-only rollback.
 
@@ -30,10 +32,10 @@ A complete interface rebuild and backend transition for Noted, merged in [PR #50
 ### Upgrade and deployment notes
 
 - Configure a Supabase environment before running v2. The app does not continue using Firebase; historical user/data import is optional and requires the reviewed tooling.
-- Deploy migration 11 and matching AI/sharing functions together. The last recorded live backend still has migrations 1–10 and the previous handlers.
+- On November 1, the linked backend's migration history matched all 13 current migrations; the `noted-ai`, `note-sharing`, and `account` handlers were deployed and checked against this candidate. Authenticated end-to-end acceptance remains outstanding.
 - Gmail Auth SMTP delivery/confirmation, the separate Resend sender, and physical-device acceptance remain open. See [release readiness](README.md#release-readiness) before public rollout.
-- Android version is `2.0.0` (build `2`). The APK uses the configured Noted upload certificate. Android cannot update an installation signed with another certificate; preserve local notes/drafts before changing installations.
-- Local verification covers 89 backend tests, 115 Flutter tests, zero analysis issues, five Deno entry points, and a signed release APK. This is not a claim that the remaining live/device checks passed.
+- Android version is `2.0.0` (build `3`). The APK uses the configured Noted upload certificate. The 1.0.0 APK used a different debug certificate and cannot be upgraded in place; preserve local notes/drafts before changing installations.
+- Local verification covers 99 backend tests, 150 Flutter tests, zero analysis issues, five Deno entry points, and a signed release APK. This is not a claim that the remaining live/device checks passed.
 
 ### Repository presentation
 

@@ -93,6 +93,15 @@ test('AI does not send unmarked legacy assistant history to provider',async()=>{
  assert.equal(response.status,200);assert.ok(!JSON.stringify(messages).includes('legacy secret'));
 });
 
+test('AI follow-up includes readable flashcards and action items in authorized history', async () => {
+ let messages;
+ const store={checkRateLimit:async()=>true,getSettings:async()=>({}),getAiRequest:async()=>null,upsertAiRequest:async()=>{},listAccessibleNotes:async()=>[{id:'a',title:'A',content:'public',category:'Personal'}],listRecentChatMessages:async()=>[{role:'ai',context_dependencies:['a'],blocks:[{t:'cards',items:[{q:'What is A?',a:'The answer'}]},{t:'todo',items:[{x:'Review A',done:false}]}]}],commitAiExchange:async()=>null};
+ const response=await handleNotedAiRequest(request({prompt:'Explain the first card',chatId:'chat'}),{verifyToken:verify,store,env:{aiApiKey:'test'},fetchImpl:async(_url,opts)=>{messages=JSON.parse(opts.body).messages;return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({intent:'answer',blocks:[{t:'p',x:'ok'}],sources:['a']})}}]}))}});
+ assert.equal(response.status,200);
+ const history=messages.find(m=>m.role==='assistant').content;
+ assert.match(history,/What is A\?/); assert.match(history,/The answer/); assert.match(history,/Review A/); assert.doesNotMatch(history,/\[object Object\]/);
+});
+
 test('copy acceptance succeeds even if ancillary notification fails',async()=>{
  const note={note_id:'n',user_id:target,deleted_at:null,title:'x'.repeat(1000),content:'body',attachments:[],revision:0,pending_shared_with_user_ids:[user]};let accepted=0;
  const store={reserveCopyCleanup:async()=>{},completeCopyCleanup:async()=>{},checkRateLimit:async()=>true,getNote:async()=>note,getProfile:async()=>({name:'a',email:'a@example.com'}),getUserSettings:async()=>({preferences:{},timezoneOffsetMinutes:0}),acceptNoteCopy:async()=>accepted++,insertNotification:async()=>{throw Error('unavailable')}};
@@ -205,4 +214,62 @@ test('scheduler does not retry the same wrapped email twice per run',async()=>{
  const store={listCopyCleanup:async()=>[],listCopySweeps:async()=>[],listPendingEmailNotifications:async()=>batch,getRecipientContext:async()=>{examined++;return {email:'u@example.com',preferences:{},timezoneOffsetMinutes:0}},listRecapCandidates:async()=>[],cleanupEphemeralRows:async()=>{}};
  const response=await handleScheduledMaintenanceRequest(new Request('https://local',{method:'POST',headers:{'x-cron-secret':'secret','Content-Type':'application/json'},body:JSON.stringify({job:'hourly'})}),{cronSecret:'secret',store,storage:{},env:{resendApiKey:'x',emailFrom:'x'},fetchImpl:async()=>{sent++;return new Response('',{status:503})},now:()=>new Date('2026-10-26T23:00:00Z')});
  assert.equal(response.status,200);assert.equal(sent,0);assert.equal(examined,200);
+});
+
+test('AI workspace scope only returns notes assigned to that workspace', async () => {
+  const { scopedNotes } = await import('../functions/_shared/policy.ts');
+  const notes = [{id:'a', workspaceId:'w'}, {id:'b'}, {id:'c',workspaceId:'other'}];
+  assert.deepEqual(scopedNotes(notes, {kind:'workspace', id:'w'}).map(n => n.id), ['a']);
+  assert.deepEqual(scopedNotes(notes, {kind:'workspace', id:'default'}).map(n => n.id), ['b']);
+});
+
+test('AI explicit tone requests override the default tone preference', async () => {
+ let system = '';
+ const store={checkRateLimit:async()=>true,getSettings:async()=>({aiTone:'friendly'}),getAiRequest:async()=>null,upsertAiRequest:async()=>{},listAccessibleNotes:async()=>[{id:'a',title:'A',content:'Hello there',category:'Personal'}],commitAiExchange:async()=>{}};
+ const response=await handleNotedAiRequest(request({prompt:'Rewrite the selected text in a formal tone',selection:'Hello there',selectionNoteId:'a'}),{verifyToken:verify,store,env:{aiApiKey:'test'},fetchImpl:async(_url,init)=>{system=JSON.parse(init.body).messages[0].content;return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({intent:'rewrite',blocks:[{t:'p',x:'Good day'}],sources:['a']})}}]}))}});
+ assert.equal(response.status,200);
+ assert.match(system,/explicitly requested tone takes precedence/i);
+});
+
+test('selection-only AI edits never send surrounding notes or chat history to the model', async () => {
+ let sent, dependencies;
+ const store={checkRateLimit:async()=>true,getSettings:async()=>({aiHistory:true}),getAiRequest:async()=>null,upsertAiRequest:async()=>{},listAccessibleNotes:async()=>[{id:'a',title:'A',content:'Private context around selected phrase',category:'Personal'}],listRecentChatMessages:async()=>[{role:'user',text:'Unrelated earlier request',context_dependencies:['a']}],commitAiExchange:async x=>{dependencies=x.contextDependencies}};
+ const response=await handleNotedAiRequest(request({prompt:'Rewrite in a formal tone',selection:'selected phrase',selectionNoteId:'a',selectionOnly:true,chatId:'chat'}),{verifyToken:verify,store,env:{aiApiKey:'test'},fetchImpl:async(_url,init)=>{sent=JSON.parse(init.body);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({intent:'rewrite',blocks:[{t:'p',x:'chosen wording'}],sources:['a']})}}]}))}});
+ assert.equal(response.status,200);
+ const user=JSON.parse(sent.messages.at(-1).content);
+ assert.equal(user.selectedText,'selected phrase');
+ assert.deepEqual(user.notes,[]);
+ assert.equal(sent.messages.length,2);
+ assert.deepEqual(dependencies,['a']);
+});
+
+test('AI excludes prior chat content from outside the selected workspace scope', async () => {
+ let sent;
+ const store={
+  checkRateLimit:async()=>true,
+  getSettings:async()=>({aiHistory:true}),
+  getAiRequest:async()=>null,
+  upsertAiRequest:async()=>{},
+  listAccessibleNotes:async()=>[
+   {id:'outside',title:'Other workspace',content:'Outside workspace secret',category:'Personal',workspaceId:'other'},
+   {id:'inside',title:'Selected workspace',content:'Inside workspace note',category:'Personal',workspaceId:'selected'},
+  ],
+  listRecentChatMessages:async()=>[
+   {role:'ai',blocks:[{t:'p',x:'Outside workspace secret'}],context_dependencies:['outside']},
+  ],
+  commitAiExchange:async()=>null,
+ };
+ const response=await handleNotedAiRequest(request({
+  prompt:'Summarize this workspace',
+  chatId:'existing-chat',
+  scope:{kind:'workspace',id:'selected'},
+ }),{verifyToken:verify,store,env:{aiApiKey:'test'},fetchImpl:async(_url,init)=>{
+  sent=JSON.parse(init.body);
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({intent:'summary',blocks:[{t:'p',x:'ok'}],sources:['inside']})}}]}));
+ }});
+
+ assert.equal(response.status,200);
+ assert.doesNotMatch(JSON.stringify(sent.messages),/Outside workspace secret/);
+ const user=JSON.parse(sent.messages.at(-1).content);
+ assert.deepEqual(user.notes.map(note=>note.id),['inside']);
 });

@@ -4,7 +4,10 @@ import assert from 'node:assert/strict';
 import { handleNotedAiRequest } from '../functions/noted-ai/handler.ts';
 import { handleNoteSharingRequest } from '../functions/note-sharing/handler.ts';
 import { handleConnectionsRequest } from '../functions/connections/handler.ts';
-import { handleAccountRequest } from '../functions/account/handler.ts';
+import {
+  createSupabaseAccountStore,
+  handleAccountRequest,
+} from '../functions/account/handler.ts';
 import { handleScheduledMaintenanceRequest } from '../functions/scheduled-maintenance/handler.ts';
 
 const ALICE = { uid: '11111111-1111-4111-8111-111111111111', email: 'alice@example.com' };
@@ -381,6 +384,29 @@ test('account verifies password before full deletion and scheduled-maintenance r
         },
       ];
     },
+    async listExportableBackupData(uid, noteIds) {
+      assert.equal(uid, ALICE.uid);
+      assert.deepEqual(noteIds, ['n1']);
+      return {
+        workspaces: [{ id: 'workspace-1', name: 'Work', user_id: uid }],
+        workspaceAssignments: [
+          { note_id: 'n1', workspace_id: 'workspace-1', user_id: uid },
+          { note_id: 'not-exported', workspace_id: 'workspace-1', user_id: uid },
+        ],
+        studyDecks: [
+          {
+            id: 'deck-1',
+            title: 'Biology',
+            cards: [{ q: 'What is a cell?', a: 'The basic unit of life.' }],
+            source_note_id: 'n1',
+            created_at: '2026-10-26T00:00:00Z',
+            updated_at: '2026-10-26T00:00:00Z',
+            user_id: uid,
+          },
+        ],
+        unavailableSections: [],
+      };
+    },
     async listOwnedNotesForDeletion() {
       return [
         {
@@ -405,7 +431,23 @@ test('account verifies password before full deletion and scheduled-maintenance r
     },
   );
   const exported = await exportRes.json();
-  assert.equal(exported.formatVersion, 1);
+  assert.equal(exported.formatVersion, 2);
+  assert.equal(exported.exportCollectionsComplete, true);
+  assert.deepEqual(exported.workspaces, [{ id: 'workspace-1', name: 'Work' }]);
+  assert.deepEqual(exported.workspaceAssignments, [
+    { noteId: 'n1', workspaceId: 'workspace-1' },
+  ]);
+  assert.deepEqual(exported.studyDecks, [
+    {
+      id: 'deck-1',
+      title: 'Biology',
+      cards: [{ q: 'What is a cell?', a: 'The basic unit of life.' }],
+      sourceNoteId: 'n1',
+      createdAt: '2026-10-26T00:00:00Z',
+      updatedAt: '2026-10-26T00:00:00Z',
+    },
+  ]);
+  assert.equal(JSON.stringify(exported).includes(ALICE.uid), false);
   assert.ok(exported.notes[0].html.includes('<strong>Bold</strong>'));
 
   // Wrong password blocks deleteAccount
@@ -511,6 +553,119 @@ test('account verifies password before full deletion and scheduled-maintenance r
   assert.equal(purgeJson.purgedNotes, 1);
   assert.equal(purgeJson.mediaDeleted, 1);
   assert.deepEqual(purgedIds, ['old_trashed']);
+});
+
+test('account export labels unavailable backup sections without dropping notes', async () => {
+  const response = await handleAccountRequest(postReq({ action: 'exportData' }), {
+    verifyToken,
+    verifyPassword: async () => false,
+    store: {
+      async listExportableNotes() {
+        return [{ id: 'n1', title: 'Plan', content: '<p>Keep this</p>' }];
+      },
+    },
+    storage: { from() { throw new Error('not used'); } },
+  });
+
+  assert.equal(response.status, 200);
+  const exported = await response.json();
+  assert.equal(exported.formatVersion, 2);
+  assert.equal(exported.exportCollectionsComplete, false);
+  assert.deepEqual(exported.unavailableSections, [
+    'workspaces',
+    'workspaceAssignments',
+    'studyDecks',
+  ]);
+  assert.equal(exported.notes.length, 1);
+  assert.deepEqual(exported.workspaces, []);
+  assert.deepEqual(exported.workspaceAssignments, []);
+  assert.deepEqual(exported.studyDecks, []);
+});
+
+test('account backup pages new collections and filters assignments to exported notes', async () => {
+  const workspaces = Array.from({ length: 501 }, (_, index) => ({
+    id: `workspace-${String(index).padStart(3, '0')}`,
+    name: `Workspace ${index}`,
+    user_id: ALICE.uid,
+  }));
+  const rows = {
+    personal_workspaces: workspaces,
+    personal_workspace_notes: [
+      { note_id: 'n1', workspace_id: 'workspace-000', user_id: ALICE.uid },
+      { note_id: 'not-exported', workspace_id: 'workspace-001', user_id: ALICE.uid },
+      { note_id: 'n1', workspace_id: 'workspace-002', user_id: BOB.uid },
+    ],
+    ai_flashcard_decks: [
+      {
+        id: 'deck-1', title: 'Biology', cards: [{ q: 'Q', a: 'A' }],
+        source_note_id: 'n1', created_at: '2026-10-26T00:00:00Z',
+        updated_at: '2026-10-26T00:00:00Z', user_id: ALICE.uid,
+      },
+      {
+        id: 'other-deck', title: 'Private', cards: [],
+        user_id: BOB.uid,
+      },
+    ],
+  };
+  const ranges = [];
+  const admin = {
+    from(table) {
+      return {
+        select(columns) {
+          const filters = {};
+          let orderKey;
+          return {
+            eq(key, value) { filters[key] = value; return this; },
+            order(key) { orderKey = key; return this; },
+            async range(start, end) {
+              ranges.push({ table, start, end });
+              const selected = (rows[table] ?? [])
+                .filter(row => Object.entries(filters).every(([key, value]) => row[key] === value))
+                .sort((a, b) => String(a[orderKey]).localeCompare(String(b[orderKey])))
+                .slice(start, end + 1)
+                .map(row => Object.fromEntries(columns.split(', ').map(key => [key, row[key]])));
+              return { data: selected, error: null };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const store = createSupabaseAccountStore(admin);
+  const result = await store.listExportableBackupData(ALICE.uid, ['n1']);
+
+  assert.equal(result.workspaces.length, 501);
+  assert.deepEqual(result.workspaceAssignments, [
+    { note_id: 'n1', workspace_id: 'workspace-000' },
+  ]);
+  assert.equal(result.studyDecks.length, 1);
+  assert.deepEqual(result.unavailableSections, []);
+  assert.deepEqual(ranges.filter(row => row.table === 'personal_workspaces'), [
+    { table: 'personal_workspaces', start: 0, end: 499 },
+    { table: 'personal_workspaces', start: 500, end: 999 },
+  ]);
+
+  const missingDeckTable = {
+    from(table) {
+      if (table !== 'ai_flashcard_decks') return admin.from(table);
+      return {
+        select() {
+          return {
+            eq() { return this; },
+            order() { return this; },
+            async range() {
+              return { data: null, error: { message: 'relation does not exist' } };
+            },
+          };
+        },
+      };
+    },
+  };
+  const partial = await createSupabaseAccountStore(missingDeckTable)
+    .listExportableBackupData(ALICE.uid, ['n1']);
+  assert.deepEqual(partial.unavailableSections, ['studyDecks']);
+  assert.deepEqual(partial.studyDecks, []);
 });
 
 test('security & reliability guards: UUID validation, wildcard email rejection, duplicate title preservation, insertNote rollback, and email retry', async () => {

@@ -33,7 +33,7 @@ class AiBlocks extends StatelessWidget {
                                 .colorScheme
                                 .onSurfaceVariant))),
                 'cards' => Flashcards(
-                    cards: (b['cards'] as List? ?? [])
+                    cards: ((b['items'] ?? b['cards']) as List? ?? [])
                         .whereType<Map>()
                         .map((v) => Map<String, dynamic>.from(v))
                         .toList()),
@@ -65,7 +65,10 @@ class AiBlocks extends StatelessWidget {
                                                   fontWeight: FontWeight.w600,
                                                   height: 1.65))),
                                     Expanded(
-                                        child: Text('$item',
+                                        child: Text(
+                                            item is Map
+                                                ? '${item['x'] ?? ''}'
+                                                : '$item',
                                             style: const TextStyle(
                                                 fontSize: 15, height: 1.65)))
                                   ]))

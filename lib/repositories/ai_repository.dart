@@ -38,6 +38,7 @@ class AiRepository {
     required String requestId,
     String? selection,
     String? selectionNoteId,
+    bool selectionOnly = false,
   }) async {
     try {
       return await SupabaseService.invokeFunction(
@@ -49,6 +50,7 @@ class AiRepository {
           'chatId': chatId,
           'requestId': requestId,
           'intent': detectIntent(prompt),
+          if (selectionOnly) 'selectionOnly': true,
           if (selection != null &&
               selection.isNotEmpty &&
               selectionNoteId != null &&
@@ -220,6 +222,20 @@ String detectIntent(String prompt) {
   return 'ask';
 }
 
+List<Map<String, String>> extractFlashcards(List<dynamic> blocks) => [
+      for (final block in blocks.whereType<Map>())
+        if (block['t'] == 'cards')
+          for (final card
+              in ((block['items'] ?? block['cards']) as List? ?? const [])
+                  .whereType<Map>())
+            if ((card['q']?.toString().trim().isNotEmpty ?? false) &&
+                (card['a']?.toString().trim().isNotEmpty ?? false))
+              {
+                'q': card['q'].toString().trim(),
+                'a': card['a'].toString().trim()
+              }
+    ];
+
 String blocksMarkdown(List<dynamic> blocks) => blocks.whereType<Map>().map((b) {
       final t = b['t'];
       if (t == 'h') return '### ${b['x']}';
@@ -233,6 +249,17 @@ String blocksMarkdown(List<dynamic> blocks) => blocks.whereType<Map>().map((b) {
             .join('\n\n');
       }
       final rawItems = b['items'] as List? ?? const [];
+      if (t == 'todo') {
+        return rawItems
+            .map((item) {
+              final text = item is Map ? item['x']?.toString() ?? '' : '$item';
+              if (text.isEmpty) return '';
+              final done = item is Map && item['done'] == true;
+              return '- [${done ? 'x' : ' '}] $text';
+            })
+            .where((line) => line.isNotEmpty)
+            .join('\n');
+      }
       final items = rawItems
           .map((e) => e is Map ? (e['x']?.toString() ?? '') : e.toString())
           .where((s) => s.isNotEmpty)
@@ -240,7 +267,6 @@ String blocksMarkdown(List<dynamic> blocks) => blocks.whereType<Map>().map((b) {
       return items
           .asMap()
           .entries
-          .map((e) =>
-              '${t == 'ol' ? '${e.key + 1}.' : t == 'todo' ? '- [ ]' : '-'} ${e.value}')
+          .map((e) => '${t == 'ol' ? '${e.key + 1}.' : '-'} ${e.value}')
           .join('\n');
     }).join('\n\n');

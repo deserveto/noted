@@ -13,11 +13,20 @@ import {
   NOTE_MEDIA_BUCKET,
   type StorageAdmin,
 } from '../_shared/media.ts';
-import { exportNotes, isValidUuid, type ScopedNoteRecord } from '../_shared/policy.ts';
+import {
+  exportAccountBackup,
+  isValidUuid,
+  type AccountBackupCollections,
+  type ScopedNoteRecord,
+} from '../_shared/policy.ts';
 
 export interface AccountStore {
   ensureAccountInitialized(uid: string, email: string): Promise<void>;
   listExportableNotes(uid: string): Promise<ScopedNoteRecord[]>;
+  listExportableBackupData?(
+    uid: string,
+    noteIds: string[],
+  ): Promise<AccountBackupCollections>;
   beginAccountDeletion(uid: string): Promise<number>;
   listOwnedNotesForDeletion(
     uid: string,
@@ -85,6 +94,45 @@ export function createSupabaseAccountStore(admin: any): AccountStore {
       }
       return [...merged.values()];
     },
+    async listExportableBackupData(uid, noteIds) {
+      const unavailableSections = new Set<string>();
+      const readRows = async (
+        section: string,
+        query: () => Promise<any[]>,
+      ): Promise<any[]> => {
+        try {
+          return await query();
+        } catch {
+          // Keep note export available if a new table is not deployed yet.
+          unavailableSections.add(section);
+          return [];
+        }
+      };
+      const [workspaces, assignments, decks] = await Promise.all([
+        readRows('workspaces', () => fetchAllPages(
+          () => admin.from('personal_workspaces').select('id, name').eq('user_id', uid),
+          'id',
+        )),
+        readRows('workspaceAssignments', () => fetchAllPages(
+          () => admin.from('personal_workspace_notes').select('note_id, workspace_id').eq('user_id', uid),
+          'note_id',
+        )),
+        readRows('studyDecks', () => fetchAllPages(
+          () => admin.from('ai_flashcard_decks').select('id, title, cards, source_note_id, created_at, updated_at').eq('user_id', uid),
+          'id',
+        )),
+      ]);
+      const exportedNoteIds = new Set(noteIds);
+      return {
+        workspaces,
+        workspaceAssignments: assignments.filter((row) =>
+          exportedNoteIds.has(String(row.note_id)),
+        ),
+        studyDecks: decks,
+        unavailableSections: ['workspaces', 'workspaceAssignments', 'studyDecks']
+          .filter((section) => unavailableSections.has(section)),
+      };
+    },
     async listOwnedNotesForDeletion(uid) {
       return await fetchAllPages(() => admin.from('notes').select('note_id, attachments').eq('user_id', uid), 'note_id');
     },
@@ -135,7 +183,25 @@ export async function handleAccountRequest(
 
     if (action === 'exportData') {
       const notes = await deps.store.listExportableNotes(caller.uid);
-      return jsonResponse(exportNotes(notes));
+      const collections = deps.store.listExportableBackupData
+        ? await deps.store.listExportableBackupData(
+          caller.uid,
+          notes.map((note) => note.id),
+        )
+        : {
+          workspaces: [],
+          workspaceAssignments: [],
+          studyDecks: [],
+          unavailableSections: ['workspaces', 'workspaceAssignments', 'studyDecks'],
+        };
+      const exportedNoteIds = new Set(notes.map((note) => note.id));
+      const exportableCollections = {
+        ...collections,
+        workspaceAssignments: collections.workspaceAssignments.filter((assignment) =>
+          exportedNoteIds.has(String(assignment.note_id ?? assignment.noteId)),
+        ),
+      };
+      return jsonResponse(exportAccountBackup(notes, exportableCollections));
     }
 
     if (action === 'deleteAccount') {

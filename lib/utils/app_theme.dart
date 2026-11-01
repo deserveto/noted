@@ -122,10 +122,16 @@ class AppTheme {
         chipTheme: ChipThemeData(
             backgroundColor: surface,
             selectedColor: text,
+            checkmarkColor: bg,
             side: BorderSide(color: border),
             shape: const StadiumBorder(),
             labelStyle:
-                TextStyle(fontFamily: 'DM Sans', color: muted, fontSize: 13)),
+                TextStyle(fontFamily: 'DM Sans', color: muted, fontSize: 13),
+            secondaryLabelStyle: TextStyle(
+                fontFamily: 'DM Sans',
+                color: bg,
+                fontSize: 13,
+                fontWeight: FontWeight.w600)),
         navigationBarTheme: NavigationBarThemeData(
             height: 72,
             backgroundColor: bg,
@@ -135,16 +141,10 @@ class AppTheme {
             labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
                 fontFamily: 'DM Sans',
                 fontSize: 11,
-                fontWeight: s.contains(WidgetState.selected)
-                    ? FontWeight.w600
-                    : FontWeight.w500,
+                fontWeight:
+                    s.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
                 color: s.contains(WidgetState.selected) ? text : muted))),
-        bottomSheetTheme: BottomSheetThemeData(
-            backgroundColor: bg,
-            surfaceTintColor: Colors.transparent,
-            showDragHandle: true,
-            dragHandleColor: border,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
+        bottomSheetTheme: BottomSheetThemeData(backgroundColor: bg, surfaceTintColor: Colors.transparent, showDragHandle: true, dragHandleColor: border, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
         dialogTheme: DialogThemeData(backgroundColor: surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
         dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
         textSelectionTheme: TextSelectionThemeData(cursorColor: sage, selectionHandleColor: sage, selectionColor: sage.withValues(alpha: .25)),

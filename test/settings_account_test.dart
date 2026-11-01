@@ -114,10 +114,85 @@ void main() {
     final encoded = jsonDecode(ExportService.encode([note], exportedAt: date))
         as Map<String, dynamic>;
     expect(encoded['formatVersion'], 1);
+    expect(encoded.keys.toSet(), {'formatVersion', 'exportedAt', 'notes'});
     expect(encoded['exportedAt'], '2026-10-26T08:00:00.000Z');
     final row = (encoded['notes'] as List).single as Map<String, dynamic>;
     expect(row['title'], 'A note');
     expect((row['html'] as String).trim(), '<p>Hello</p>');
     expect(row['created'], '2026-10-26T08:00:00.000Z');
+  });
+  test('v2 backup includes personal workspaces, assignments and saved decks',
+      () {
+    final date = DateTime.utc(2026, 10, 26, 8);
+    final note = NoteModel.empty('alice').copyWith(noteId: 'note-1');
+    final encoded = jsonDecode(ExportService.encode(
+      [note],
+      exportedAt: date,
+      collections: ExportCollections(
+        workspaces: [
+          {'id': 'workspace-1', 'name': 'Work', 'user_id': 'private-user-id'}
+        ],
+        workspaceAssignments: [
+          {
+            'note_id': 'note-1',
+            'workspace_id': 'workspace-1',
+            'user_id': 'private-user-id'
+          }
+        ],
+        studyDecks: [
+          {
+            'id': 'deck-1',
+            'title': 'Biology',
+            'cards': [
+              {'q': 'What is a cell?', 'a': 'The basic unit of life.'}
+            ],
+            'source_note_id': 'note-1',
+            'created_at': date,
+            'updated_at': date,
+            'user_id': 'private-user-id'
+          }
+        ],
+      ),
+    )) as Map<String, dynamic>;
+
+    expect(encoded['formatVersion'], 2);
+    expect(encoded['exportCollectionsComplete'], isTrue);
+    expect(encoded['unavailableSections'], isEmpty);
+    expect(encoded['workspaces'], [
+      {'id': 'workspace-1', 'name': 'Work'}
+    ]);
+    expect(encoded['workspaceAssignments'], [
+      {'noteId': 'note-1', 'workspaceId': 'workspace-1'}
+    ]);
+    expect(encoded['studyDecks'], [
+      {
+        'id': 'deck-1',
+        'title': 'Biology',
+        'cards': [
+          {'q': 'What is a cell?', 'a': 'The basic unit of life.'}
+        ],
+        'sourceNoteId': 'note-1',
+        'createdAt': '2026-10-26T08:00:00.000Z',
+        'updatedAt': '2026-10-26T08:00:00.000Z',
+      }
+    ]);
+    expect(jsonEncode(encoded), isNot(contains('private-user-id')));
+  });
+  test('partial backup names unavailable sections and retains note export', () {
+    final note = NoteModel.empty('alice').copyWith(noteId: 'note-1');
+    final encoded = jsonDecode(ExportService.encode(
+      [note],
+      collections: const ExportCollections(
+        workspaces: [],
+        workspaceAssignments: [],
+        studyDecks: [],
+        unavailableSections: ['studyDecks'],
+      ),
+    )) as Map<String, dynamic>;
+
+    expect(encoded['exportCollectionsComplete'], isFalse);
+    expect(encoded['unavailableSections'], ['studyDecks']);
+    expect((encoded['notes'] as List).length, 1);
+    expect(encoded['studyDecks'], isEmpty);
   });
 }

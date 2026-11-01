@@ -10,6 +10,7 @@ import '../services/recently_deleted_page.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
+import '../utils/pluralize.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -61,6 +62,41 @@ class _SettingsPageState extends State<SettingsPage> {
     vm.invalidateAiHistory();
   }
 
+  Future<bool> _confirmPartialExport(List<String> unavailableSections) async {
+    if (!mounted) return false;
+    const labels = {
+      'workspaces': 'Workspaces',
+      'workspaceAssignments': 'Note assignments',
+      'studyDecks': 'Saved flashcard decks',
+    };
+    final names = unavailableSections
+        .map((section) => labels[section] ?? section)
+        .join(', ');
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Some export data is unavailable'),
+            content: Text(
+              'Could not load: $names. The file will contain notes only. '
+              'Attachment files are not included, and Noted cannot restore '
+              'this JSON automatically. Export notes only?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Export notes only'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _set(String key, Object value) async {
     final vm = context.read<SettingsViewModel>();
     if (key == 'appLock') {
@@ -98,24 +134,34 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _choice(String key, String label, Map<String, String> options,
-      [String? desc]) {
+      [String? desc, bool valueAsSubtitle = false]) {
     final value = context.watch<SettingsViewModel>().settings.toMap()[key];
+    final selectedText = options[value] ?? '$value';
     return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         title: Text(label, style: const TextStyle(fontSize: 15)),
-        subtitle: desc == null
-            ? null
-            : Text(desc, style: const TextStyle(fontSize: 12)),
-        trailing: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 145),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Flexible(
-                  child: Text(options[value] ?? '$value',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 13, color: Theme.of(context).hintColor))),
-              const ReferenceIcon('next', size: 16)
-            ])),
+        subtitle: valueAsSubtitle
+            ? Text(
+                desc == null ? selectedText : '$selectedText · $desc',
+                style:
+                    TextStyle(fontSize: 13, color: Theme.of(context).hintColor),
+              )
+            : (desc == null
+                ? null
+                : Text(desc, style: const TextStyle(fontSize: 12))),
+        trailing: valueAsSubtitle
+            ? const ReferenceIcon('next', size: 16)
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 145),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Flexible(
+                      child: Text(selectedText,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context).hintColor))),
+                  const ReferenceIcon('next', size: 16)
+                ])),
         onTap: () => showModalBottomSheet<void>(
             context: context,
             showDragHandle: true,
@@ -480,15 +526,21 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 (
                   'New note color',
-                  _choice('defaultColor', 'New note color', {
-                    'auto': 'Rotate automatically',
-                    'blue': 'Powder blue',
-                    'pink': 'Blush pink',
-                    'mint': 'Mint',
-                    'yellow': 'Butter yellow',
-                    'peach': 'Peach',
-                    'lav': 'Lavender'
-                  })
+                  _choice(
+                    'defaultColor',
+                    'New note color',
+                    {
+                      'auto': 'Rotate automatically',
+                      'blue': 'Powder blue',
+                      'pink': 'Blush pink',
+                      'mint': 'Mint',
+                      'yellow': 'Butter yellow',
+                      'peach': 'Peach',
+                      'lav': 'Lavender'
+                    },
+                    null,
+                    true,
+                  )
                 ),
                 ('Spell check', _toggle('spellcheck', 'Spell check')),
                 ('Show word count', _toggle('wordCount', 'Show word count'))
@@ -623,10 +675,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 (
                   'Export all notes',
-                  _row('Export all notes',
-                      () => _action(() => ExportService().share(notes)),
-                      desc: 'Download a JSON file',
-                      value: '${notes.length} notes')
+                  _row(
+                      'Export all notes',
+                      () => _action(() => ExportService().share(
+                            notes,
+                            confirmPartial: _confirmPartialExport,
+                          )),
+                      desc:
+                          'JSON data only; attachment files are excluded. No automatic restore.',
+                      value: pluralize(notes.length, 'note'))
                 ),
                 (
                   'Recently deleted',

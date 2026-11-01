@@ -57,3 +57,18 @@ test('seal rejects a validated snapshot if a note changed before locking',async(
  assert.equal((await c.asService(t=>t.query('select audit_rollback_migration(true) as r'))).rows[0].r.errors.length,1);
  } finally {await c.db.close()}
 });
+
+test('rollback refuses to cascade personal workspace assignments', async()=>{
+ const c=await createSupabaseTestDb(); try {
+ await c.asService(t=>t.query('select audit_assert_migration_target_empty()'));
+ await c.createAuthUser({id:A,email:'a@example.com',name:'A'});
+ await c.asUser(A,t=>t.query("insert into notes(note_id,user_id,title) values('imported',$1,'one')",[A]));
+ await c.asService(t=>t.query("insert into migration_id_mappings(entity_type,firebase_id,supabase_id) values('note','f','imported')"));
+ const w=(await c.asUser(A,t=>t.query("insert into personal_workspaces(user_id,name) values($1,'Work') returning id",[A]))).rows[0].id;
+ await c.asUser(A,t=>t.query("insert into personal_workspace_notes(user_id,note_id,workspace_id) values($1,'imported',$2)",[A,w]));
+ await seal(c);
+ const r=await c.asService(t=>t.query('select audit_rollback_migration(false) as r'));
+ assert.match(r.rows[0].r.errors[0],/Unmapped dependent/);
+ assert.equal((await c.asUser(A,t=>t.query('select count(*)::int as n from personal_workspace_notes'))).rows[0].n,1);
+ } finally {await c.db.close()}
+});

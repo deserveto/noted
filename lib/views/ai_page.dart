@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/note_model.dart';
+import '../services/supabase_service.dart';
+import 'study_decks_page.dart';
+import 'workspaces_page.dart';
 import '../repositories/ai_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/note_navigation.dart';
@@ -22,6 +25,7 @@ class AiPage extends StatefulWidget {
       this.selection,
       this.selectionNoteId,
       this.onInsert,
+      this.onInlineEdit,
       this.compact = false,
       this.repository});
   final AiRepository? repository;
@@ -29,6 +33,7 @@ class AiPage extends StatefulWidget {
   final String? initialPrompt, selection, selectionNoteId;
   final Map<String, dynamic>? initialScope;
   final ValueChanged<String>? onInsert;
+  final bool Function(String markdown, bool replace)? onInlineEdit;
   final bool compact;
   @override
   State<AiPage> createState() => _AiPageState();
@@ -40,7 +45,7 @@ class _AiPageState extends State<AiPage> {
   late String _chatId;
   late Map<String, dynamic> _scope;
   final List<Map<String, dynamic>> _messages = [];
-  bool _busy = false, _historyEnabled = true;
+  bool _busy = false, _historyEnabled = true, _lastInline = false;
   String? _requestId, _error, _lastPrompt;
   int _generation = 0;
   int? _historyEpoch;
@@ -99,6 +104,9 @@ class _AiPageState extends State<AiPage> {
         _ => notes
       };
   String _scopeLabel(List<NoteModel> notes) {
+    if (_scope['kind'] == 'workspace') {
+      return _scope['id'] == 'default' ? 'Default workspace' : 'Workspace';
+    }
     if (_scope['kind'] == 'fav') return 'Favorites';
     if (_scope['kind'] == 'cat') return '${_scope['cat']} notes';
     if (_scope['kind'] == 'notes') {
@@ -130,7 +138,8 @@ class _AiPageState extends State<AiPage> {
     });
   }
 
-  Future<void> _send(String raw, {bool retry = false}) async {
+  Future<void> _send(String raw,
+      {bool retry = false, bool inline = false}) async {
     final prompt = raw.trim();
     if (prompt.isEmpty || _busy) return;
     final generation = ++_generation, request = _repo.newId();
@@ -139,6 +148,7 @@ class _AiPageState extends State<AiPage> {
       _requestId = request;
       _error = null;
       _lastPrompt = prompt;
+      _lastInline = inline;
       if (!retry) _messages.add({'role': 'user', 'text': prompt});
       _text.clear();
     });
@@ -157,7 +167,8 @@ class _AiPageState extends State<AiPage> {
           ...answer,
           'role': 'ai',
           'id': answer['messageId'],
-          'prompt': prompt
+          'prompt': prompt,
+          'inline': inline,
         });
         _busy = false;
         _requestId = null;
@@ -240,6 +251,28 @@ class _AiPageState extends State<AiPage> {
     }
   }
 
+  Future<void> _saveDeck(List<dynamic> blocks, Set<String> sources) async {
+    final cards = extractFlashcards(blocks);
+    if (cards.isEmpty) return;
+    try {
+      final client = SupabaseService.client;
+      final uid = client.auth.currentUser?.id;
+      if (uid == null) throw StateError('Sign in required');
+      final source = sources.length == 1 ? sources.first : null;
+      await client.from('ai_flashcard_decks').insert({
+        'user_id': uid,
+        'title': 'Flashcards',
+        'cards': cards,
+        if (source != null) 'source_note_id': source,
+      });
+      if (mounted) notedToast(context, 'Saved to study decks');
+    } catch (_) {
+      if (mounted) {
+        notedToast(context, 'Could not save deck. Check your connection.');
+      }
+    }
+  }
+
   Future<void> _feedback(Map<String, dynamic> m, String value) async {
     final uid = context.read<AuthViewModel>().user?.uid;
     if (uid == null) return;
@@ -274,6 +307,7 @@ class _AiPageState extends State<AiPage> {
                           .update({'aiEnabled': true})))));
     }
     return Scaffold(
+        resizeToAvoidBottomInset: !widget.compact,
         backgroundColor: theme.scaffoldBackgroundColor,
         body: SafeArea(
             bottom: widget.compact,
@@ -307,6 +341,14 @@ class _AiPageState extends State<AiPage> {
                             Text(_scopeLabel(notes),
                                 style: theme.textTheme.bodySmall)
                         ])),
+                    if (!widget.compact)
+                      IconButton(
+                          tooltip: 'Study decks',
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                  builder: (_) => const StudyDecksPage())),
+                          icon: const ReferenceIcon('cards')),
                     if (_historyEnabled && !widget.compact)
                       IconButton(
                           tooltip: 'Chat history',
@@ -382,7 +424,8 @@ class _AiPageState extends State<AiPage> {
                           child: InlineError(_error!,
                               onRetry: _busy || _lastPrompt == null
                                   ? null
-                                  : () => _send(_lastPrompt!, retry: true))),
+                                  : () => _send(_lastPrompt!,
+                                      retry: true, inline: _lastInline))),
                     if (!_busy &&
                         _messages.any(
                             (m) => m['role'] == 'ai' && m['stopped'] != true))
@@ -406,71 +449,101 @@ class _AiPageState extends State<AiPage> {
                   child: Column(children: [
                     SurfacePanel(
                         padding: const EdgeInsets.all(6),
-                        child: Column(children: [
-                          TextField(
-                              controller: _text,
-                              keyboardType: TextInputType.multiline,
-                              minLines: 1,
-                              maxLines: 4,
-                              textInputAction: TextInputAction.newline,
-                              onChanged: (_) => setState(() {}),
-                              decoration: InputDecoration(
-                                  hintText: widget.compact
-                                      ? 'Ask about this note…'
-                                      : 'Ask about your notes…',
-                                  filled: false,
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding:
-                                      const EdgeInsets.fromLTRB(10, 8, 10, 8))),
-                          Row(children: [
-                            Flexible(
-                                child: TextButton(
-                                    onPressed: _busy ? null : _pickScope,
-                                    style: TextButton.styleFrom(
-                                        backgroundColor: theme.colorScheme
-                                            .surfaceContainerHighest,
-                                        foregroundColor:
-                                            theme.colorScheme.onSurface,
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10),
-                                        minimumSize: const Size(0, 44),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12))),
-                                    child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const ReferenceIcon('doc', size: 14),
-                                          const SizedBox(width: 6),
-                                          Flexible(
-                                              child: Text(_scopeLabel(notes),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                      fontSize: 12))),
-                                          Text(' · ${_pool(notes).length}',
-                                              style: theme.textTheme.bodySmall)
-                                        ]))),
-                            const Spacer(),
-                            IconButton.filled(
-                                tooltip: _busy ? 'Stop generating' : 'Send',
-                                onPressed: _busy
-                                    ? _stop
-                                    : _text.text.trim().isEmpty
-                                        ? null
-                                        : () => _send(_text.text),
-                                style: IconButton.styleFrom(
-                                    backgroundColor: theme.colorScheme.primary,
-                                    foregroundColor:
-                                        theme.colorScheme.onPrimary),
-                                icon: ReferenceIcon(_busy ? 'stop' : 'arrow',
-                                    size: 16))
-                          ])
-                        ])),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                  controller: _text,
+                                  autofocus: false,
+                                  keyboardType: TextInputType.multiline,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  textInputAction: TextInputAction.newline,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: InputDecoration(
+                                      hintText: widget.compact
+                                          ? 'Ask about this note…'
+                                          : 'Ask about your notes…',
+                                      filled: false,
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.fromLTRB(
+                                          10, 8, 10, 8))),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: Stack(children: [
+                                  Positioned(
+                                      left: 0,
+                                      right: 52,
+                                      child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: TextButton(
+                                              onPressed:
+                                                  _busy ? null : _pickScope,
+                                              style: TextButton.styleFrom(
+                                                  backgroundColor: theme
+                                                      .colorScheme
+                                                      .surfaceContainerHighest,
+                                                  foregroundColor: theme
+                                                      .colorScheme.onSurface,
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 10),
+                                                  minimumSize:
+                                                      const Size(0, 44),
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(
+                                                          12))),
+                                              child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const ReferenceIcon('doc',
+                                                        size: 14),
+                                                    const SizedBox(width: 6),
+                                                    Flexible(
+                                                        child: Text(
+                                                            _scopeLabel(notes),
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style:
+                                                                const TextStyle(
+                                                                    fontSize:
+                                                                        12))),
+                                                    if (_scope['kind'] !=
+                                                        'workspace')
+                                                      Text(
+                                                          ' · ${_pool(notes).length}',
+                                                          style: theme.textTheme
+                                                              .bodySmall)
+                                                  ])))),
+                                  Positioned(
+                                      right: 0,
+                                      child: SizedBox.square(
+                                          dimension: 44,
+                                          child: IconButton.filled(
+                                              tooltip: _busy
+                                                  ? 'Stop generating'
+                                                  : 'Send',
+                                              onPressed: _busy
+                                                  ? _stop
+                                                  : _text.text.trim().isEmpty
+                                                      ? null
+                                                      : () => _send(_text.text),
+                                              style: IconButton.styleFrom(
+                                                  backgroundColor:
+                                                      theme.colorScheme.primary,
+                                                  foregroundColor: theme
+                                                      .colorScheme.onPrimary),
+                                              icon: ReferenceIcon(
+                                                  _busy ? 'stop' : 'arrow',
+                                                  size: 16))))
+                                ]),
+                              )
+                            ])),
                     const SizedBox(height: 6),
                     Text('AI can be wrong — check the sources.',
                         textAlign: TextAlign.center,
@@ -484,29 +557,42 @@ class _AiPageState extends State<AiPage> {
     final theme = Theme.of(context);
     final caps = <(String, String, String, String, String)>[
       (
-        'Summarize',
-        'The key points, fast',
+        'Summarize notes',
+        'Generate concise key points',
         'Summarize these notes',
         'list',
+        'mint'
+      ),
+      (
+        'Extract action tasks',
+        'Find tasks and next steps',
+        'Extract action items from these notes',
+        'todo',
+        'peach'
+      ),
+      (
+        'Identify key decisions',
+        'Highlight decisions and trade-offs',
+        'Identify key decisions and trade-offs',
+        'spark',
+        'lav'
+      ),
+      (
+        'Generate flashcards',
+        'Create active recall study cards',
+        'Make flashcards',
+        'cards',
         'blue'
       ),
       (
         'Study guide',
-        'Concepts, recap, quiz',
+        'Concepts, recap and questions',
         'Build a study guide',
         'target',
         'mint'
       ),
-      ('Flashcards', 'Flip-to-reveal cards', 'Make flashcards', 'cards', 'lav'),
       (
-        'Action items',
-        'Open tasks & to-dos',
-        'What action items are still open?',
-        'todo',
-        'yellow'
-      ),
-      (
-        'Find related',
+        'Find related notes',
         'Connect your ideas',
         'Find related notes',
         'link',
@@ -523,10 +609,27 @@ class _AiPageState extends State<AiPage> {
     if (widget.compact) {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (widget.selection?.isNotEmpty == true) ...[
-          OutlinedButton(
-              onPressed: () => _send('Explain the selected text'),
-              child: Text('Explain your selection: “${widget.selection}”',
-                  maxLines: 3, overflow: TextOverflow.ellipsis)),
+          Text('Edit selection', style: theme.textTheme.titleMedium),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final action in [
+              'Rewrite',
+              'Shorten',
+              'Clarify',
+              'Tone',
+              'Checklist'
+            ])
+              ActionChip(
+                  label: Text(action),
+                  onPressed: () => _send(
+                      switch (action) {
+                        'Tone' =>
+                          'Rewrite the selected text in a clear, professional tone',
+                        'Checklist' =>
+                          'Turn the selected text into a checklist',
+                        _ => '$action the selected text',
+                      },
+                      inline: true)),
+          ]),
           const SizedBox(height: 12),
         ],
         Text('For this note', style: theme.textTheme.bodySmall),
@@ -545,94 +648,65 @@ class _AiPageState extends State<AiPage> {
               onTap: () => _send(p)),
       ]);
     }
-    Widget capability((String, String, String, String, String) c) {
-      return Material(
-        color: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.dividerColor)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-            onTap: () => _send(c.$3),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                            color: AppColors.noteColor(theme.brightness, c.$5),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: ReferenceIcon(c.$4, size: 18)),
-                    const SizedBox(height: 12),
-                    Text(c.$1,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontSize: 14)),
-                    Text(c.$2, style: theme.textTheme.bodySmall),
-                  ]),
-            )),
-      );
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text.rich(
-          TextSpan(text: 'What would you like to ', children: [
-            TextSpan(
-                text: 'understand',
-                style: TextStyle(
-                    fontFamily: 'Newsreader',
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w400,
-                    color: theme.colorScheme.primary)),
-            const TextSpan(text: ' today?'),
-          ]),
-          style: theme.textTheme.headlineMedium
-              ?.copyWith(fontSize: 26, height: 1.15, letterSpacing: -.52)),
-      const SizedBox(height: 8),
-      Text(
-          'Noted AI reads only the notes you choose and always shows where an answer came from.',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      const SizedBox(height: 20),
-      for (var row = 0; row < 3; row++)
-        Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: capability(caps[row * 2])),
-              const SizedBox(width: 10),
-              Expanded(child: capability(caps[row * 2 + 1])),
-            ])),
-      if (notes.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        Text('Suggested from your notes',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(fontSize: 13, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 8),
-        SurfacePanel(
-            padding: EdgeInsets.zero,
-            child: Column(children: [
-              for (final n in notes.take(3))
-                ListTile(
-                  leading: ReferenceIcon('spark',
-                      size: 15, color: theme.colorScheme.primary),
-                  title: Text(
-                      'Summarize “${n.title.isEmpty ? 'Untitled' : n.title}”',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14)),
-                  onTap: () {
-                    setState(() => _scope = {
-                          'kind': 'notes',
-                          'ids': [n.noteId]
-                        });
-                    _send(
-                        'Summarize “${n.title.isEmpty ? 'Untitled' : n.title}”');
-                  },
-                ),
-            ])),
-      ],
+    return Column(children: [
+      const SizedBox(height: 12),
+      Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(16)),
+          child: ReferenceIcon('spark', color: theme.colorScheme.primary)),
+      const SizedBox(height: 12),
+      Text('Ask Noted', style: theme.textTheme.headlineSmall),
+      const SizedBox(height: 4),
+      Text('Find answers in your notes.', style: theme.textTheme.bodySmall),
+      const SizedBox(height: 16),
+      Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
+        ChoiceChip(
+            label: const Text('This note'),
+            selected: _scope['kind'] == 'notes' &&
+                widget.initialNoteIds?.length == 1 &&
+                (_scope['ids'] as List? ?? []).length == 1 &&
+                (_scope['ids'] as List).first == widget.initialNoteIds!.first,
+            onSelected: widget.initialNoteIds?.length == 1
+                ? (_) => setState(() => _scope = {
+                      'kind': 'notes',
+                      'ids': widget.initialNoteIds,
+                    })
+                : null),
+        ChoiceChip(
+            label: const Text('Workspace'),
+            selected: _scope['kind'] == 'workspace',
+            onSelected: (_) async {
+              final id = await pickWorkspace(context);
+              if (id != null && mounted) {
+                setState(() => _scope = {'kind': 'workspace', 'id': id});
+              }
+            }),
+        ChoiceChip(
+            label: const Text('All notes'),
+            selected: _scope['kind'] == 'all',
+            onSelected: (_) => setState(() => _scope = {'kind': 'all'})),
+      ]),
+      const SizedBox(height: 16),
+      SurfacePanel(
+          padding: EdgeInsets.zero,
+          child: Column(children: [
+            for (final c in caps)
+              ListTile(
+                  leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                          color: AppColors.noteColor(theme.brightness, c.$5),
+                          borderRadius: BorderRadius.circular(12)),
+                      child: ReferenceIcon(c.$4, size: 18)),
+                  title: Text(c.$1, style: theme.textTheme.titleSmall),
+                  subtitle: Text(c.$2, style: theme.textTheme.bodySmall),
+                  trailing: const ReferenceIcon('arrow', size: 16),
+                  onTap: () => _send(c.$3)),
+          ])),
     ]);
   }
 
@@ -641,6 +715,8 @@ class _AiPageState extends State<AiPage> {
     final blocks = m['blocks'] as List? ?? [],
         sources = (m['sources'] as List? ?? []).whereType<String>().toSet(),
         theme = Theme.of(context);
+    final hasCards =
+        blocks.whereType<Map>().any((block) => block['t'] == 'cards');
     final showSources = context.watch<SettingsViewModel>().settings.aiSources;
     return SurfacePanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -656,7 +732,44 @@ class _AiPageState extends State<AiPage> {
                     color: theme.colorScheme.primary)))
       ]),
       const SizedBox(height: 12),
+      if (m['inline'] == true && widget.selection != null) ...[
+        Text('Before', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Text(widget.selection!),
+        const SizedBox(height: 16),
+        Text('After', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 6),
+      ],
       AiBlocks(blocks: blocks),
+      if (m['inline'] == true && widget.onInlineEdit != null && !hasCards) ...[
+        Wrap(spacing: 8, children: [
+          for (final replace in [true, false])
+            OutlinedButton(
+                onPressed: () {
+                  final applied =
+                      widget.onInlineEdit!(blocksMarkdown(blocks), replace);
+                  notedToast(
+                      context,
+                      applied
+                          ? 'Updated your note'
+                          : 'The note changed. Select the text again.');
+                },
+                child: Text(replace ? 'Replace' : 'Insert below')),
+          OutlinedButton(
+              onPressed: () async {
+                await Clipboard.setData(
+                    ClipboardData(text: blocksMarkdown(blocks)));
+                if (context.mounted) notedToast(context, 'Copied');
+              },
+              child: const Text('Copy')),
+          OutlinedButton(
+              onPressed: _busy
+                  ? null
+                  : () => _send(m['prompt'] as String? ?? '',
+                      retry: true, inline: true),
+              child: const Text('Try again')),
+        ]),
+      ],
       if (showSources && sources.isNotEmpty) ...[
         const SizedBox(height: 16),
         const Divider(),
@@ -676,7 +789,12 @@ class _AiPageState extends State<AiPage> {
                     style: const TextStyle(fontSize: 12)))
         ])
       ],
-      if (widget.onInsert != null) ...[
+      if (extractFlashcards(blocks).isNotEmpty)
+        FilledButton.icon(
+            onPressed: () => _saveDeck(blocks, sources),
+            icon: const ReferenceIcon('cards', size: 16),
+            label: const Text('Save to study decks')),
+      if (widget.onInsert != null && m['inline'] != true && !hasCards) ...[
         const SizedBox(height: 12),
         SizedBox(
             width: double.infinity,
@@ -713,43 +831,51 @@ class _AiPageState extends State<AiPage> {
           runSpacing: 0,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(
-                      ClipboardData(text: blocksMarkdown(blocks)));
-                  if (context.mounted) notedToast(context, 'Copied');
-                },
-                icon: const ReferenceIcon('copy', size: 15),
-                label: const Text('Copy', style: TextStyle(fontSize: 12))),
-            TextButton.icon(
-                onPressed: () => _save(blocks, m['intent'] as String?),
-                icon: const ReferenceIcon('doc', size: 15),
-                label:
-                    const Text('Save as note', style: TextStyle(fontSize: 12))),
-            IconButton(
-                tooltip: 'Retry',
-                onPressed: _busy
-                    ? null
-                    : () => _send(
-                        m['prompt'] as String? ??
-                            _lastPrompt ??
-                            'Summarize this',
-                        retry: true),
-                icon: const ReferenceIcon('refresh', size: 16)),
-            IconButton(
-                tooltip: 'Helpful',
-                isSelected: m['fb'] == 'up',
-                onPressed: () => _feedback(m, 'up'),
-                icon: ReferenceIcon('up',
-                    size: 16,
-                    color: m['fb'] == 'up' ? theme.colorScheme.primary : null)),
-            IconButton(
-                tooltip: 'Not helpful',
-                isSelected: m['fb'] == 'down',
-                onPressed: () => _feedback(m, 'down'),
-                icon: ReferenceIcon('down',
-                    size: 16,
-                    color: m['fb'] == 'down' ? theme.colorScheme.error : null))
+            if (m['inline'] != true || widget.onInlineEdit == null || hasCards)
+              TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                        ClipboardData(text: blocksMarkdown(blocks)));
+                    if (context.mounted) notedToast(context, 'Copied');
+                  },
+                  icon: const ReferenceIcon('copy', size: 15),
+                  label: const Text('Copy', style: TextStyle(fontSize: 12))),
+            if (!hasCards)
+              TextButton.icon(
+                  onPressed: () => _save(blocks, m['intent'] as String?),
+                  icon: const ReferenceIcon('doc', size: 15),
+                  label: const Text('Save as note',
+                      style: TextStyle(fontSize: 12))),
+            if (m['inline'] != true || widget.onInlineEdit == null || hasCards)
+              IconButton(
+                  tooltip: 'Retry',
+                  onPressed: _busy
+                      ? null
+                      : () => _send(
+                          m['prompt'] as String? ??
+                              _lastPrompt ??
+                              'Summarize this',
+                          retry: true,
+                          inline: m['inline'] == true),
+                  icon: const ReferenceIcon('refresh', size: 16)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                  tooltip: 'Helpful',
+                  isSelected: m['fb'] == 'up',
+                  onPressed: () => _feedback(m, 'up'),
+                  icon: ReferenceIcon('up',
+                      size: 16,
+                      color:
+                          m['fb'] == 'up' ? theme.colorScheme.primary : null)),
+              IconButton(
+                  tooltip: 'Not helpful',
+                  isSelected: m['fb'] == 'down',
+                  onPressed: () => _feedback(m, 'down'),
+                  icon: ReferenceIcon('down',
+                      size: 16,
+                      color:
+                          m['fb'] == 'down' ? theme.colorScheme.error : null))
+            ])
           ]),
     ]));
   }
@@ -819,6 +945,12 @@ class _AiPageState extends State<AiPage> {
                                           onTap: () => Navigator.pop(
                                               context, {'kind': 'all'})),
                                       ListTile(
+                                          leading:
+                                              const ReferenceIcon('layers'),
+                                          title: const Text('Workspace'),
+                                          onTap: () => Navigator.pop(context,
+                                              {'kind': 'workspace_pick'})),
+                                      ListTile(
                                           leading: const ReferenceIcon('star'),
                                           title: const Text('Favorites'),
                                           subtitle: Text(
@@ -858,7 +990,14 @@ class _AiPageState extends State<AiPage> {
                                     child:
                                         Text('Use ${selected.length} notes'))))
                     ]))));
-    if (result != null && mounted) setState(() => _scope = result);
+    if (result?['kind'] == 'workspace_pick' && mounted) {
+      final id = await pickWorkspace(context);
+      if (id != null && mounted) {
+        setState(() => _scope = {'kind': 'workspace', 'id': id});
+      }
+    } else if (result != null && mounted) {
+      setState(() => _scope = result);
+    }
   }
 
   Future<void> _history() async {

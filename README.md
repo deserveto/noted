@@ -178,7 +178,7 @@ For backend deployment responsibilities, see [supabase/README.md](supabase/READM
 
 ## Verification
 
-The merged source was reverified on **October 28, 2026**: **89 backend tests**, **115 Flutter tests**, **zero analysis issues**, all five Deno entry-point checks, and a signed **63.7 MB Android release APK**. These are local results, not GitHub Actions status; this repository currently has no CI workflow.
+The repository includes a GitHub Actions workflow for Flutter analysis and tests, backend tests, and Edge Function type checks. A passing workflow does not verify the deployed backend or replace device acceptance.
 
 ```powershell
 # Flutter: static analysis, unit/widget/golden coverage
@@ -207,10 +207,11 @@ Golden fixtures cover 360, 390, and 430 px light/dark layouts. The backend suite
 
 Source merge, backend deployment, and public release are separate milestones. **The following remain open at this documentation update:**
 
-- **Backend rollout:** deploy migration 11 and the matching AI/sharing functions together. The last recorded live state has migrations 1–10 and the earlier function sources; merging Git does not deploy Supabase.
+- **Backend rollout:** on November 1, 2026, the linked project's migration history matched all 13 local versions. The `noted-ai`, `note-sharing`, and `account` handlers were deployed and verified against this candidate; complete authenticated end-to-end acceptance against the target environment.
 - **Auth email:** Gmail SMTP settings are saved, but actual delivery needs verification and email confirmation needs enabling before public rollout.
 - **Activity email:** invitations and recaps use a separate Resend sender that still needs verification.
 - **Device acceptance:** check two-device editing, offline/reconnect and revocation, microphone/camera, biometrics, and external cold-start auth/note links.
+- **Recovery:** confirm recoverable database and media backups with a tested restoration procedure. The last physical-backup listing returned no backup records.
 
 The [setup and cutover guide](docs/SUPABASE_SETUP_AND_CUTOVER.md) is the operational checklist. [The combined review](docs/FULL_CHANGE_REVIEW.md) records the fixes, evidence, and limits behind PR #50.
 
