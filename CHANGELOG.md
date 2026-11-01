@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0](https://github.com/deserveto/noted/releases/tag/v2.0.0) — release candidate
+## [2.0.0](https://github.com/deserveto/noted/releases/tag/v2.0.0) — 2026-11-01
 
 A complete interface rebuild and backend transition for Noted, merged in [PR #50](https://github.com/deserveto/noted/pull/50).
 

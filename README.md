@@ -33,10 +33,10 @@
 
 Capture a thought before it disappears. Turn a meeting into a shared working note. Gather research, a drawing, or a voice memo in the same place. Noted pairs a warm, uncluttered Flutter interface with a Supabase backend built around account isolation and private media.
 
-**Android is the verified target in this repository. v2.0.0 is a pre-release.** It brings together the UI rebuild and Firebase-to-Supabase migration from [PR #50](https://github.com/deserveto/noted/pull/50). Backend deployment and physical-device acceptance are separate release steps; read [release readiness](#release-readiness) before using a build.
+**Android is the verified build target in this repository.** v2.0.0 brings together the UI rebuild and Firebase-to-Supabase migration from [PR #50](https://github.com/deserveto/noted/pull/50). Read [release readiness](#release-readiness) for the remaining deployment and physical-device checks before using a build.
 
 <p align="center">
-  <a href="https://github.com/deserveto/noted/releases/tag/v2.0.0"><strong>Get the v2.0.0 Android pre-release →</strong></a>
+  <a href="https://github.com/deserveto/noted/releases/tag/v2.0.0"><strong>Get the v2.0.0 Android release →</strong></a>
   &nbsp;·&nbsp;
   <a href="CHANGELOG.md">What's new</a>
 </p>
