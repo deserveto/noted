@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an improvement to how you use Noted.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one improvement per issue. Search [existing requests](https://github.com/deserveto/noted/issues) first; if one matches, add your use case there.
+
+        Use the bug report form if something already in Noted is broken. Keep examples free of credentials and private note content.
+  - type: checkboxes
+    id: before-requesting
+    attributes:
+      label: Before requesting
+      options:
+        - label: I searched existing issues for this request.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe your workflow, what gets in the way, and who would benefit. A concrete example helps.
+      placeholder: When I prepare for a weekly meeting, I need to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Describe the behavior you would like and where it would fit in Noted.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Optional. How do you handle this today? Mention other approaches you considered and where they fall short.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a successful result look like?
+      description: Optional. Give a short before-and-after example or describe how you would know the change solves your problem.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Optional. Attach a sketch or reference if it helps. Include device or platform details when they affect the request, and remove private information before posting.

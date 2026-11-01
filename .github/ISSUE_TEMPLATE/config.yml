@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup and troubleshooting documentation
+    url: https://github.com/deserveto/noted/blob/main/README.md#run-it-locally
+    about: Start here for installation, backend configuration, and local development.
+  - name: Release notes and known rollout checks
+    url: https://github.com/deserveto/noted/blob/main/README.md#release-readiness
+    about: Check the release status and remaining backend or device acceptance checks.

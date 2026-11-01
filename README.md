@@ -1,19 +1,17 @@
-<p align="center">
-  <img src="docs/Logo.png" alt="Noted app icon" width="76" />
-</p>
-
 <h1 align="center">Noted</h1>
 
 <p align="center">
-  A peaceful space for personal ideas and shared work.<br />
-  Rich notes, live collaboration, and a little help from AI.
+  A peaceful space for personal ideas and shared work.
 </p>
 
 <p align="center">
-  <a href="https://github.com/deserveto/noted/releases/tag/v2.0.0"><img alt="Version 2.0.0" src="https://img.shields.io/badge/Version-2.0.0-4F7E6C?style=flat-square&amp;labelColor=242926" /></a>
-  <a href="https://flutter.dev"><img alt="Flutter 3.41.6" src="https://img.shields.io/badge/Flutter-3.41.6-4F7E6C?style=flat-square&amp;labelColor=242926" /></a>
-  <a href="supabase/README.md"><img alt="Backend: Supabase" src="https://img.shields.io/badge/Backend-Supabase-4F7E6C?style=flat-square&amp;labelColor=242926" /></a>
-  <a href="#verification"><img alt="Android release build verified" src="https://img.shields.io/badge/Android-build_verified-4F7E6C?style=flat-square&amp;labelColor=242926" /></a>
+  <a href="https://github.com/deserveto/noted/releases/tag/v2.0.0">Download for Android</a> &nbsp;·&nbsp;
+  <a href="CHANGELOG.md">What's new in 2.0.0</a> &nbsp;·&nbsp;
+  <a href="https://github.com/deserveto/noted/issues/new/choose">Report an issue</a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/noted-hero.png" alt="Ivory paper, an open sage notebook, and a fine line connecting loose pages in a warm, minimal still life" width="1280" />
 </p>
 
 <p align="center">
@@ -24,32 +22,19 @@
   <a href="#documentation">Documentation</a>
 </p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-hero-dark.svg" />
-  <img src="docs/assets/readme-hero-light.svg" alt="A quieter place for your next idea. Rich writing, shared thinking, and everyday organization in one space." width="1280" />
-</picture>
+Noted is a Flutter app for everyday notes and work you share with others. Keep meeting notes beside a sketch or voice memo, organize research into personal workspaces, and invite someone to edit with you. Noted AI can answer questions about selected notes or turn them into flashcards you can save for later.
 
-## Make room for the things worth keeping
-
-Capture a thought before it disappears. Turn a meeting into a shared working note. Gather research, a drawing, or a voice memo in the same place. Noted pairs a warm, uncluttered Flutter interface with a Supabase backend built around account isolation and private media.
-
-**Android is the verified build target in this repository.** v2.0.0 brings together the UI rebuild and Firebase-to-Supabase migration from [PR #50](https://github.com/deserveto/noted/pull/50). Read [release readiness](#release-readiness) for the remaining deployment and physical-device checks before using a build.
-
-<p align="center">
-  <a href="https://github.com/deserveto/noted/releases/tag/v2.0.0"><strong>Get the v2.0.0 Android release →</strong></a>
-  &nbsp;·&nbsp;
-  <a href="CHANGELOG.md">What's new</a>
-</p>
+The interface uses warm paper colors, sage accents, and bundled DM Sans with Newsreader italic. Supabase handles authentication, live updates, and private media. Android is the verified build target; see [release readiness](#release-readiness) for the remaining deployment and device checks.
 
 ## A look inside
 
-Real Flutter golden renders, using fixture data. Screenshots follow your GitHub light/dark preference. Full-size images are in [test/goldens/](test/goldens/).
+These are real Flutter golden renders with sample data. Each preview follows your GitHub light or dark theme; [all full-size renders](test/goldens/) are in the repository.
 
 <table>
   <tr>
-    <th width="33%">A calm beginning</th>
-    <th width="33%">Your notes, organized</th>
-    <th width="33%">Space to write</th>
+    <th width="33%">Welcome</th>
+    <th width="33%">Notes library</th>
+    <th width="33%">Rich-text editor</th>
   </tr>
   <tr>
     <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="test/goldens/welcome_390_dark.png" /><img src="test/goldens/welcome_390_light.png" alt="Welcome screen with a warm background and sample note cards" width="250" /></picture></td>
@@ -57,9 +42,9 @@ Real Flutter golden renders, using fixture data. Screenshots follow your GitHub 
     <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="test/goldens/editor_390_dark.png" /><img src="test/goldens/editor_390_light.png" alt="Rich-text editor displaying a project note and an interactive checklist" width="250" /></picture></td>
   </tr>
   <tr>
-    <th>Plan by date</th>
-    <th>A personal overview</th>
-    <th>Make it yours</th>
+    <th>Calendar</th>
+    <th>Profile</th>
+    <th>Settings</th>
   </tr>
   <tr>
     <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="test/goldens/calendar_390_dark.png" /><img src="test/goldens/calendar_390_light.png" alt="Monthly calendar sheet for browsing dated notes" width="250" /></picture></td>
@@ -68,28 +53,28 @@ Real Flutter golden renders, using fixture data. Screenshots follow your GitHub 
   </tr>
 </table>
 
-The interface uses bundled **DM Sans** and **Newsreader italic**, a sage-and-paper palette, semantic light/dark colors, and responsive layouts. [Explore the design system →](DESIGN.md)
+The layouts adapt to different phone widths and include light, dark, and system themes. Color, type, and component details are in the [design system](DESIGN.md).
 
 ## What you can do
 
 | | In Noted |
 |---|---|
-| **Write naturally** | Rich text, headings, lists, and checklists in a Quill editor. Existing Markdown stays readable and imports without a destructive bulk rewrite. |
-| **Find your rhythm** | Categories, note colors, favorites, title/content search, calendar dates, and a recently deleted area with restore. |
-| **Think together** | Live edit/view roles, collaborator presence, revision-checked saves, and access revocation. Share independent note copies with accepted connections. |
-| **Keep the context** | Images, drawings, voice memos, and avatars in private Storage. Copies receive independent media paths. |
-| **Keep going offline** | A per-account cache and pending-write outbox replay edits on reconnect; conflict handling preserves recovery drafts. |
-| **Ask your notes** | Note-scoped AI answers with validated sources, structured blocks, flashcards, cancellation, feedback, and chat history. |
-| **Stay in control** | App lock, theme and writing preferences, account export/deletion, and optional analytics disabled by default. |
-| **Stay connected** | Email connection requests, an in-app activity feed, quiet hours, and scheduled recap support. Outbound email needs a configured provider. |
+| Writing | Rich text, headings, lists, and checklists in a Quill editor. Existing Markdown stays readable and imports without a destructive bulk rewrite. |
+| Organization | Categories, colors, favorites, title and content search, calendar dates, and personal workspaces. Restore notes from Recently deleted before the scheduled 30-day purge. |
+| Collaboration | Live editing with edit or view roles, collaborator presence, revision-checked saves, and access revocation. Send independent note copies to accepted connections. |
+| Attachments | Add images, drawings, and voice memos. Attachments and avatars use private Storage; copied notes receive independent media paths. |
+| Offline work | A cache and pending-write outbox for each account. Edits replay on reconnect, and conflict handling preserves recovery drafts. |
+| Noted AI | Ask about selected notes, follow validated sources, work with structured answers, edit selected text, and save flashcards as study decks. Includes cancellation, feedback, and chat history. |
+| Account and preferences | App lock, writing preferences, profile photos, password recovery, JSON export, and account deletion. Optional analytics is off by default. |
+| Connections and activity | Email connection requests, an in-app activity feed, quiet hours, and scheduled recaps. Outbound email requires a configured provider. |
 
-AI responses are validated after generation rather than streamed token by token. AI and email providers are configured on the server; availability and provider usage limits apply.
+AI answers are validated after generation and delivered as complete responses. AI and email providers run on the server and have their own availability and usage limits. JSON exports include available workspace and study-deck data; attachment files and automatic restore are not included.
 
 ## Run it locally
 
 ### 1. Get the project
 
-Use **Flutter 3.41.6 / Dart 3.11.4**, an Android SDK, and **Java 17**. **Node.js 22+** is needed for backend tests and migration tools. Android uses AGP 8.13.2, Gradle 8.13, and Kotlin 2.3.10; retain the committed lockfiles to reproduce the verified build.
+Use Flutter 3.41.6 with Dart 3.11.4, an Android SDK, and Java 17. Backend tests and migration tools need Node.js 22+. The Android build uses AGP 8.13.2, Gradle 8.13, and Kotlin 2.3.10. Keep the committed lockfiles to reproduce this environment.
 
 ```powershell
 git clone https://github.com/deserveto/noted.git
@@ -100,9 +85,9 @@ flutter pub get
 
 ### 2. Connect a Supabase backend
 
-Provision the schema, private buckets, and matching Edge Functions using the [backend setup guide](docs/SUPABASE_SETUP_AND_CUTOVER.md). An empty Supabase project with only a URL/key is not sufficient.
+Follow the [backend setup guide](docs/SUPABASE_SETUP_AND_CUTOVER.md) to provision the schema, private buckets, and matching Edge Functions before launching the app.
 
-Create the ignored client configuration once. These examples use PowerShell:
+Create the ignored client configuration once. The commands here use PowerShell:
 
 ```powershell
 if (-not (Test-Path .env.supabase.json)) {
@@ -110,7 +95,7 @@ if (-not (Test-Path .env.supabase.json)) {
 }
 ```
 
-Edit `.env.supabase.json` with your project's **public client values**:
+Fill in `.env.supabase.json` with your project's public client values:
 
 ```json
 {
@@ -120,20 +105,25 @@ Edit `.env.supabase.json` with your project's **public client values**:
 }
 ```
 
-`SUPABASE_PUBLISHABLE_KEY` is also supported and takes precedence over `SUPABASE_ANON_KEY`. Client keys do not replace RLS. Service-role keys, database passwords, signing passwords, and AI/email secrets belong outside the app and Git.
+`SUPABASE_PUBLISHABLE_KEY` is also supported and takes precedence over `SUPABASE_ANON_KEY`. Publishable and anon keys rely on Row Level Security (RLS) policies to protect data. Keep service-role keys, database passwords, signing passwords, and AI or email secrets outside the app and Git. See [Supabase's key guidance](https://supabase.com/docs/guides/api/api-keys).
 
 ### 3. Launch on Android
 
-Start an emulator or connect an Android device, then run:
+Start an emulator or connect an Android device:
 
 ```powershell
 flutter devices
 flutter run --dart-define-from-file=.env.supabase.json
 ```
 
-The unit/widget/golden suite can run without live Supabase credentials. Running the connected app requires the backend configuration above.
+The unit, widget, and golden tests can run without live Supabase credentials. The connected app needs the backend above.
 
 ## How it fits together
+
+Noted uses MVVM with Provider. Views render state, view models coordinate it, and repositories own backend access. Direct database and media access use RLS; Edge Functions revalidate user access. Stored `noted-media://` references stay stable while signed media URLs expire. Scheduled maintenance uses a separate cron secret.
+
+<details>
+<summary>Architecture diagram</summary>
 
 ```mermaid
 flowchart TD
@@ -153,7 +143,10 @@ flowchart TD
     CRON["pg_cron schedules"] --> EDGE
 ```
 
-Views render state; view models coordinate it; repositories own backend access. Direct database and media access use RLS. Edge Functions revalidate user access; scheduled maintenance uses a separate cron secret. Signed media URLs expire, while stored `noted-media://` references remain stable.
+</details>
+
+<details>
+<summary>Repository structure</summary>
 
 ```text
 lib/
@@ -174,11 +167,13 @@ docs/                Setup, review evidence, design and migration history
 functions/           Historical Firebase reference; not the active backend
 ```
 
-For backend deployment responsibilities, see [supabase/README.md](supabase/README.md).
+</details>
+
+See the [backend overview](supabase/README.md) for deployment responsibilities and trust boundaries. Version 2.0.0 combines the interface rebuild and Firebase-to-Supabase migration merged in [PR #50](https://github.com/deserveto/noted/pull/50).
 
 ## Verification
 
-The repository includes a GitHub Actions workflow for Flutter analysis and tests, backend tests, and Edge Function type checks. A passing workflow does not verify the deployed backend or replace device acceptance.
+[GitHub Actions](https://github.com/deserveto/noted/actions/workflows/ci.yml) runs Flutter analysis and tests, backend tests, and Edge Function type checks.
 
 ```powershell
 # Flutter: static analysis, unit/widget/golden coverage
@@ -199,38 +194,44 @@ deno check supabase/functions/account/index.ts supabase/functions/connections/in
 flutter build apk --release --dart-define-from-file=.env.supabase.json
 ```
 
-The APK is written to `build/app/outputs/flutter-apk/app-release.apk`. Release builds require an upload keystore and ignored `android/key.properties`; there is no debug-signing fallback. Follow the [signing and release instructions](docs/SUPABASE_SETUP_AND_CUTOVER.md#7-android-signing-and-final-gates), preserving any existing published signing identity.
+The APK is written to `build/app/outputs/flutter-apk/app-release.apk`. Release builds require an upload keystore and ignored `android/key.properties`, with no debug-signing fallback. Follow the [signing and release instructions](docs/SUPABASE_SETUP_AND_CUTOVER.md#7-android-signing-and-final-gates) and preserve the existing published signing identity.
 
-Golden fixtures cover 360, 390, and 430 px light/dark layouts. The backend suite uses PGlite and controlled handler/provider fixtures; it does not replace testing a deployed project or physical devices.
+Golden fixtures cover light and dark layouts at 360, 390, and 430 px. Backend tests use PGlite and controlled handler and provider fixtures. A passing local suite or workflow still needs acceptance checks against the deployed backend and physical devices.
 
 ## Release readiness
 
-Source merge, backend deployment, and public release are separate milestones. **The following remain open at this documentation update:**
+The November 1, 2026 release notes record the following outstanding checks. Use the [setup and cutover guide](docs/SUPABASE_SETUP_AND_CUTOVER.md) when preparing a public rollout.
 
-- **Backend rollout:** on November 1, 2026, the linked project's migration history matched all 13 local versions. The `noted-ai`, `note-sharing`, and `account` handlers were deployed and verified against this candidate; complete authenticated end-to-end acceptance against the target environment.
-- **Auth email:** Gmail SMTP settings are saved, but actual delivery needs verification and email confirmation needs enabling before public rollout.
-- **Activity email:** invitations and recaps use a separate Resend sender that still needs verification.
-- **Device acceptance:** check two-device editing, offline/reconnect and revocation, microphone/camera, biometrics, and external cold-start auth/note links.
-- **Recovery:** confirm recoverable database and media backups with a tested restoration procedure. The last physical-backup listing returned no backup records.
+| Area | Remaining checks |
+|---|---|
+| Backend | All 13 local migrations matched the linked project's history. The `noted-ai`, `note-sharing`, and `account` handlers were deployed and verified against this candidate. Complete authenticated end-to-end acceptance in the target environment. |
+| Auth email | Verify actual Gmail SMTP delivery and enable email confirmation before public rollout. Saved settings alone do not confirm delivery. |
+| Activity email | Verify the separate Resend sender used for invitations and recaps. |
+| Devices | Check two-device editing, offline reconnect, access revocation, microphone and camera, biometrics, and external auth and note links from a cold start. |
+| Recovery | Confirm recoverable database and media backups and test restoration. The last recorded physical-backup listing contained no backup records. |
 
-The [setup and cutover guide](docs/SUPABASE_SETUP_AND_CUTOVER.md) is the operational checklist. [The combined review](docs/FULL_CHANGE_REVIEW.md) records the fixes, evidence, and limits behind PR #50.
+The [combined review](docs/FULL_CHANGE_REVIEW.md) records the fixes and verification limits behind PR #50.
 
 ## Documentation
 
-| I want to… | Start here |
+| To… | Start here |
 |---|---|
-| Provision, deploy, or prepare a release | [Supabase setup & cutover](docs/SUPABASE_SETUP_AND_CUTOVER.md) |
-| Understand the backend and its trust boundaries | [Backend overview](supabase/README.md) |
-| Understand the UI's colors, type, and components | [Design system](DESIGN.md) |
-| Review the combined UI/backend changes | [Full change review](docs/FULL_CHANGE_REVIEW.md) · [PR #50](https://github.com/deserveto/noted/pull/50) |
+| Provision a backend or prepare a release | [Supabase setup & cutover](docs/SUPABASE_SETUP_AND_CUTOVER.md) |
+| Understand backend access and deployment | [Backend overview](supabase/README.md) |
+| Work on colors, typography, or components | [Design system](DESIGN.md) |
+| Review the combined UI and backend changes | [Full change review](docs/FULL_CHANGE_REVIEW.md) · [PR #50](https://github.com/deserveto/noted/pull/50) |
 | Import historical Firebase data | [Migration tooling](tools/migration/README.md) |
-| Find historical plans and audit evidence | [Documentation index](docs/README.md) |
-| Understand why Firebase files remain | [Legacy backend reference](functions/README.md) |
+| Find plans and audit evidence | [Documentation index](docs/README.md) |
+| Understand the remaining Firebase files | [Legacy backend reference](functions/README.md) |
+
+## Reporting issues
+
+Use the [issue forms](https://github.com/deserveto/noted/issues/new/choose) to [report a bug](https://github.com/deserveto/noted/issues/new?template=01-bug-report.yml) or [request a feature](https://github.com/deserveto/noted/issues/new?template=02-feature-request.yml). Search [existing issues](https://github.com/deserveto/noted/issues) first so related reports stay together.
+
+For bugs, include the steps to reproduce, expected and actual behavior, app version, and device details. Screenshots and logs help when they show the problem; remove credentials, email addresses, and private note content before posting. If you built the app yourself, include the commit and relevant toolchain details.
 
 ## Contributing
 
-Start from `main`, keep changes focused, and include verification results in your pull request. Follow the existing MVVM/Provider boundaries and [repository instructions](AGENTS.md). For UI changes, read [DESIGN.md](DESIGN.md), inspect light/dark layouts, and review golden changes as images. For backend changes, add a versioned migration and test access control and concurrency behavior.
+Start from `main`, keep changes focused, and include verification results in your pull request. Follow the MVVM and Provider boundaries and the [repository instructions](AGENTS.md). For UI changes, read [DESIGN.md](DESIGN.md), inspect light and dark layouts, and review golden changes as images. For backend changes, add a versioned migration and test access control and concurrency behavior.
 
-Report reproducible bugs through [GitHub Issues](https://github.com/deserveto/noted/issues), including steps, expected/actual behavior, and toolchain details. Remove credentials and personal note content from examples. This repository does not currently include a root software license; bundled fonts retain their own [DM Sans](assets/fonts/DMSans-LICENSE.txt) and [Newsreader](assets/fonts/Newsreader-LICENSE.txt) licenses.
-
-<p align="center"><sub>Capture what matters. Leave room to think.</sub></p>
+This repository does not currently include a root software license. Bundled fonts retain their own [DM Sans](assets/fonts/DMSans-LICENSE.txt) and [Newsreader](assets/fonts/Newsreader-LICENSE.txt) licenses.

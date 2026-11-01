@@ -1,0 +1,106 @@
+name: Bug report
+description: Report something in Noted that is not working as expected.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please report one problem per issue and search [existing reports](https://github.com/deserveto/noted/issues) first. If a report already matches, add your details there.
+
+        Issues are public. Remove passwords, API keys, access tokens, email addresses, private note content, and signed media URLs from any text, screenshots, or logs you share. Use sample notes when reproducing a problem.
+  - type: checkboxes
+    id: before-reporting
+    attributes:
+      label: Before reporting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed credentials and private information from this report and its attachments.
+          required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from opening the app. Include any setup another person needs, such as a shared note, an edit or view role, or a second device. If you cannot reproduce it reliably, describe what happened before the problem.
+      placeholder: |
+        1. Open a note shared with an accepted connection.
+        2. Sign in on a second device with permission to edit that note.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen after these steps?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe the problem, its effect on your work, and any error message exactly as shown. Explain any difference between devices or whether reopening the app changes the result. Remove private information first.
+      placeholder: After editing a shared note, the latest paragraph disappears when I reopen it.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Noted version
+      description: Include the version and build number if available. If you built from source, include the branch and commit SHA. Write "unknown" if you cannot find them.
+      placeholder: "2.0.0 (build 3), or branch and commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation source
+      options:
+        - GitHub release APK
+        - Built from source
+        - Other or unknown
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and operating system
+      description: Include the device model and Android version. For an emulator or another platform, give its name and OS version. Include both devices if relevant.
+      placeholder: Pixel 8, Android 15; or Android emulator, API 35
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does it happen?
+      options:
+        - Every time
+        - Sometimes
+        - Happened once
+        - Not sure
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Network state when it happened
+      options:
+        - Online
+        - Offline
+        - Reconnecting or switching networks
+        - Not sure or not relevant
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or recording
+      description: Optional. Paste or attach images or a short recording that shows the problem. Crop or obscure private content first. For layout issues, mention the theme, text size, and display size settings.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Optional. Paste only the relevant error and stack trace, with secrets and personal data removed. This field formats logs automatically; do not add code fences.
+      render: text
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Optional. Mention when this last worked, any workaround, and whether the note was personal or shared. For source builds, include relevant Flutter, Dart, Java, or Node versions and whether the backend is self-hosted. Do not upload environment or signing files.
