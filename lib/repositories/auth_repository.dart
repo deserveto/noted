@@ -9,6 +9,7 @@ import '../models/user_model.dart';
 import '../services/media_url_resolver.dart';
 import '../services/offline_note_store.dart';
 import '../services/supabase_service.dart';
+import '../services/workspace_cache_store.dart';
 
 class AuthRepository {
   AuthRepository({SupabaseClient? client}) : _clientOverride = client;
@@ -330,6 +331,7 @@ class AuthRepository {
 
     if (uid.isNotEmpty) {
       await const OfflineNoteStore().clearUser(uid);
+      await const WorkspaceCacheStore().clearUser(uid);
     }
     if (_client.auth.currentUser?.id == uid) {
       MediaUrlResolver.clearCache();

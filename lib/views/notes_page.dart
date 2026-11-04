@@ -12,6 +12,7 @@ import '../widgets/note_card.dart';
 import '../widgets/noted_ui.dart';
 import '../widgets/pending_share_actions.dart';
 import '../widgets/reference_icon.dart';
+import '../widgets/workspace_filter_bar.dart';
 import 'ai_page.dart';
 
 class NotesPage extends StatefulWidget {
@@ -65,6 +66,7 @@ class _NotesPageState extends State<NotesPage> {
     vm.updateSearch('');
     vm.updateCategory('All');
     vm.updateLibraryFilter(LibraryFilter.all);
+    vm.resetWorkspaceSelection();
     setState(() {});
   }
 
@@ -73,7 +75,13 @@ class _NotesPageState extends State<NotesPage> {
     _debounce?.cancel();
     vm.updateSearch(q);
     final Map<String, dynamic> scope;
-    if (vm.selectedCategory == 'All' && vm.libraryFilter == LibraryFilter.all) {
+    if (!vm.workspaceSelection.isAll) {
+      scope = {
+        'kind': 'notes',
+        'ids': vm.filteredNotes.map((n) => n.noteId).toList()
+      };
+    } else if (vm.selectedCategory == 'All' &&
+        vm.libraryFilter == LibraryFilter.all) {
       scope = {'kind': 'all'};
     } else if (q.isEmpty &&
         vm.selectedCategory == 'All' &&
@@ -121,7 +129,7 @@ class _NotesPageState extends State<NotesPage> {
                   title: 'Your ',
                   accent: 'notes',
                   metadata:
-                      '${pluralize(vm.totalNotes, 'note')} · ${pluralize(vm.totalFavorites, 'favorite')}'),
+                      '${pluralize(vm.totalNotes, 'note')} total · ${pluralize(vm.totalFavorites, 'favorite')} total'),
               const SizedBox(height: 20),
               TextField(
                   controller: _search,
@@ -190,6 +198,19 @@ class _NotesPageState extends State<NotesPage> {
                               : pluralize(results.length, 'match', 'matches'),
                           style: theme.textTheme.bodySmall)
                     ])),
+              const SizedBox(height: 12),
+              WorkspaceFilterBar(
+                key: const ValueKey('workspace-filter'),
+                workspaces: vm.workspaces,
+                selection: vm.workspaceSelection,
+                selectionLabel: vm.workspaceSelectionLabel,
+                status: vm.workspaceStatus,
+                assignmentsKnown: vm.workspaceAssignmentsKnown,
+                errorMessage: vm.workspaceErrorMessage,
+                onSelected: vm.updateWorkspaceSelection,
+                onReset: vm.resetWorkspaceSelection,
+                onRetry: vm.retryWorkspaces,
+              ),
               const SizedBox(height: 16),
               Container(
                   padding: const EdgeInsets.all(4),
@@ -272,9 +293,9 @@ class _NotesPageState extends State<NotesPage> {
                                         const SizedBox(width: 4),
                                         Text(
                                             '${[
-                                              vm.totalNotes,
-                                              vm.totalFavorites,
-                                              vm.totalLive
+                                              vm.visibleAllCount,
+                                              vm.visibleFavoriteCount,
+                                              vm.visibleLiveCount
                                             ][i]}',
                                             style: TextStyle(
                                                 fontSize: 11,
@@ -349,6 +370,16 @@ class _NotesPageState extends State<NotesPage> {
           actionLabel: 'New note',
           onAction: () => createNote(context));
     }
+    if (!vm.workspaceSelection.isAll && vm.workspaceScopedCount == 0) {
+      return EmptyState(
+        title: 'No notes in ${vm.workspaceSelectionLabel}',
+        message: vm.workspaceSelection.isNamed
+            ? 'Assign a note to this workspace, or show every workspace.'
+            : 'Notes assigned to another workspace stay out of Default.',
+        actionLabel: 'Show all workspaces',
+        onAction: vm.resetWorkspaceSelection,
+      );
+    }
     if (_search.text.isNotEmpty || vm.selectedCategory != 'All') {
       return EmptyState(
           title: _search.text.isNotEmpty
@@ -359,14 +390,28 @@ class _NotesPageState extends State<NotesPage> {
           onAction: _clear);
     }
     if (vm.libraryFilter == LibraryFilter.favorites) {
-      return const EmptyState(
-          title: 'No favorites yet',
-          message: 'Tap the star on any note to keep it here, one tap away.');
+      return EmptyState(
+          title: vm.workspaceSelection.isAll
+              ? 'No favorites yet'
+              : 'No favorites in ${vm.workspaceSelectionLabel}',
+          message: vm.workspaceSelection.isAll
+              ? 'Tap the star on any note to keep it here, one tap away.'
+              : 'Try another workspace, or reset the workspace filter.',
+          actionLabel:
+              vm.workspaceSelection.isAll ? null : 'Show all workspaces',
+          onAction:
+              vm.workspaceSelection.isAll ? null : vm.resetWorkspaceSelection);
     }
-    return const EmptyState(
-        title: 'No live notes',
-        message:
-            'Open a note, tap Share, then choose Edit together to work on it with others.');
+    return EmptyState(
+        title: vm.workspaceSelection.isAll
+            ? 'No live notes'
+            : 'No live notes in ${vm.workspaceSelectionLabel}',
+        message: vm.workspaceSelection.isAll
+            ? 'Open a note, tap Share, then choose Edit together to work on it with others.'
+            : 'Try another workspace, or reset the workspace filter.',
+        actionLabel: vm.workspaceSelection.isAll ? null : 'Show all workspaces',
+        onAction:
+            vm.workspaceSelection.isAll ? null : vm.resetWorkspaceSelection);
   }
 
   void _sort(BuildContext context) => notedSheet<void>(context,

@@ -1,55 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_service.dart';
-
-class WorkspaceRepository {
-  final _client = SupabaseService.client;
-  String get _uid =>
-      _client.auth.currentUser?.id ?? (throw StateError('Sign in required'));
-
-  Future<List<Map<String, dynamic>>> list() async =>
-      List<Map<String, dynamic>>.from(await _client
-          .from('personal_workspaces')
-          .select()
-          .eq('user_id', _uid)
-          .order('name'));
-  Future<String> assignment(String noteId) async {
-    final row = await _client
-        .from('personal_workspace_notes')
-        .select('workspace_id')
-        .eq('user_id', _uid)
-        .eq('note_id', noteId)
-        .maybeSingle();
-    return row?['workspace_id'] as String? ?? 'default';
-  }
-
-  Future<void> assign(String noteId, String workspaceId) async {
-    if (workspaceId == 'default') {
-      await _client
-          .from('personal_workspace_notes')
-          .delete()
-          .eq('user_id', _uid)
-          .eq('note_id', noteId);
-    } else {
-      await _client.from('personal_workspace_notes').upsert(
-          {'user_id': _uid, 'note_id': noteId, 'workspace_id': workspaceId},
-          onConflict: 'user_id,note_id');
-    }
-  }
-
-  Future<void> create(String name) async => _client
-      .from('personal_workspaces')
-      .insert({'user_id': _uid, 'name': name});
-  Future<void> rename(String id, String name) async => _client
-      .from('personal_workspaces')
-      .update({'name': name})
-      .eq('user_id', _uid)
-      .eq('id', id);
-  Future<void> delete(String id) async => _client
-      .from('personal_workspaces')
-      .delete()
-      .eq('user_id', _uid)
-      .eq('id', id);
-}
+import '../models/workspace_model.dart';
+import '../repositories/workspace_repository.dart';
 
 Future<String?> pickWorkspace(BuildContext context, {String? noteId}) async {
   try {
@@ -63,16 +14,20 @@ Future<String?> pickWorkspace(BuildContext context, {String? noteId}) async {
         builder: (ctx) => SafeArea(
                 child: ListView(shrinkWrap: true, children: [
               const ListTile(title: Text('Choose workspace')),
-              for (final workspace in [
-                {'id': 'default', 'name': 'Default'},
-                ...values
-              ])
+              ListTile(
+                  title: const Text('Default'),
+                  trailing: current == WorkspaceSelection.defaultWorkspaceId
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => Navigator.pop(
+                      ctx, WorkspaceSelection.defaultWorkspaceId)),
+              for (final workspace in values)
                 ListTile(
-                    title: Text(workspace['name'] as String),
-                    trailing: current == workspace['id']
+                    title: Text(workspace.name),
+                    trailing: current == workspace.id
                         ? const Icon(Icons.check)
                         : null,
-                    onTap: () => Navigator.pop(ctx, workspace['id'] as String)),
+                    onTap: () => Navigator.pop(ctx, workspace.id)),
               ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('Manage workspaces'),
@@ -100,7 +55,7 @@ class WorkspacesPage extends StatefulWidget {
 }
 
 class _WorkspacesPageState extends State<WorkspacesPage> {
-  late Future<List<Map<String, dynamic>>> _items;
+  late Future<List<PersonalWorkspace>> _items;
   @override
   void initState() {
     super.initState();
@@ -111,9 +66,8 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
     _items = Future.sync(() => WorkspaceRepository().list());
   }
 
-  Future<void> _edit([Map<String, dynamic>? item]) async {
-    final controller =
-        TextEditingController(text: item?['name'] as String? ?? '');
+  Future<void> _edit([PersonalWorkspace? item]) async {
+    final controller = TextEditingController(text: item?.name ?? '');
     final value = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -137,7 +91,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
       if (item == null) {
         await repo.create(value);
       } else {
-        await repo.rename(item['id'] as String, value);
+        await repo.rename(item.id, value);
       }
       if (mounted) setState(_refresh);
     } catch (_) {
@@ -148,7 +102,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
     }
   }
 
-  Future<void> _delete(Map<String, dynamic> item) async {
+  Future<void> _delete(PersonalWorkspace item) async {
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -164,7 +118,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
                 ]));
     if (confirmed != true) return;
     try {
-      await WorkspaceRepository().delete(item['id'] as String);
+      await WorkspaceRepository().delete(item.id);
       if (mounted) setState(_refresh);
     } catch (_) {
       if (mounted) {
@@ -182,7 +136,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
             onPressed: _edit,
             icon: const Icon(Icons.add))
       ]),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
+      body: FutureBuilder<List<PersonalWorkspace>>(
           future: _items,
           builder: (ctx, snapshot) {
             if (snapshot.hasError) {
@@ -201,7 +155,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
                   subtitle: Text('Notes without another workspace')),
               for (final item in snapshot.data!)
                 ListTile(
-                    title: Text(item['name'] as String),
+                    title: Text(item.name),
                     trailing: PopupMenuButton<String>(
                         onSelected: (action) =>
                             action == 'rename' ? _edit(item) : _delete(item),

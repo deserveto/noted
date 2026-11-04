@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/analytics_service.dart';
 import 'services/app_lock_gate.dart';
 import 'repositories/note_repository.dart';
+import 'repositories/workspace_repository.dart';
 import 'utils/app_routes.dart';
 import 'utils/app_theme.dart';
 import 'viewmodels/auth_viewmodel.dart';
@@ -33,7 +34,10 @@ class _NotedAppState extends State<NotedApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) NoteRepository().refresh();
+    if (state == AppLifecycleState.resumed) {
+      NoteRepository().refresh();
+      WorkspaceRepository().refresh();
+    }
   }
 
   @override

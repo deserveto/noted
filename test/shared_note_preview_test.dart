@@ -119,6 +119,10 @@ class _Server {
     final path = r.url.path;
     if (r.method == 'GET') {
       if (path.endsWith('/user_favorites')) return reply(r, []);
+      if (path.endsWith('/personal_workspaces') ||
+          path.endsWith('/personal_workspace_notes')) {
+        return reply(r, []);
+      }
       if (path.endsWith('/notifications')) {
         return reply(r, [
           {
@@ -238,11 +242,18 @@ void main() {
     );
   }
 
+  Future<void> tapVisible(WidgetTester tester, String text) async {
+    final target = find.text(text).first;
+    await tester.ensureVisible(target);
+    await tester.pump();
+    await tester.tap(target);
+  }
+
   Future<void> open(WidgetTester tester, {bool dark = false}) async {
     await tester.pumpWidget(app(dark: dark));
     await tester.pumpAndSettle();
     expect(find.text('Preview'), findsOneWidget);
-    await tester.tap(find.text('Preview'));
+    await tapVisible(tester, 'Preview');
     await tester.pumpAndSettle();
   }
 
@@ -291,6 +302,8 @@ void main() {
         }
         server.actionGate = Completer<void>();
         final button = find.text(accept ? 'Accept copy' : 'Decline');
+        await tester.ensureVisible(button.first);
+        await tester.pump();
         await tester.tap(button);
         await tester.tap(button);
         await tester.pump();
@@ -326,14 +339,14 @@ void main() {
         await tester.pumpWidget(app());
         await tester.pumpAndSettle();
         if (!before) {
-          await tester.tap(find.text('Preview'));
+          await tapVisible(tester, 'Preview');
           await tester.pumpAndSettle();
         }
         server.source = deleted
             ? invitation.copyWith(deletedAt: DateTime(2026))
             : invitation.copyWith(pendingSharedWithUserIds: []);
         if (before) {
-          await tester.tap(find.text('Preview'));
+          await tapVisible(tester, 'Preview');
         } else {
           await tester.pump(const Duration(seconds: 30));
         }
@@ -375,12 +388,12 @@ void main() {
       (tester) async {
     await open(tester);
     server.failAction = true;
-    await tester.tap(find.text('Accept copy'));
+    await tapVisible(tester, 'Accept copy');
     await tester.pumpAndSettle();
     expect(find.byType(SharedNotePreviewPage), findsOneWidget);
     expect(server.copies, isEmpty);
     server.failAction = false;
-    await tester.tap(find.text('Accept copy'));
+    await tapVisible(tester, 'Accept copy');
     await tester.pumpAndSettle();
     expect(server.copies.length, 1);
     expect(vm.pendingSharedNotes, isEmpty);
@@ -393,7 +406,7 @@ void main() {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
     server.readGate = Completer<void>();
-    await tester.tap(find.text('Preview'));
+    await tapVisible(tester, 'Preview');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -429,7 +442,7 @@ void main() {
       (tester) async {
     await open(tester);
     server.actionGate = Completer<void>();
-    await tester.tap(find.text('Accept copy'));
+    await tapVisible(tester, 'Accept copy');
     await tester.pump();
     await tester.pageBack();
     await tester.pump(const Duration(milliseconds: 100));
@@ -509,7 +522,7 @@ void main() {
     }));
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Preview'));
+    await tapVisible(tester, 'Preview');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(signs, 1);

@@ -3,14 +3,21 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/note_model.dart';
+import '../models/workspace_model.dart';
 import '../repositories/note_repository.dart';
+import '../repositories/workspace_repository.dart';
 
 enum LibraryFilter { all, favorites, live }
 
 enum NoteSort { lastEdited, dateCreated, title }
 
+enum WorkspaceLibraryStatus { loading, ready, cached, unavailable }
+
 class NoteViewModel extends ChangeNotifier {
-  NoteViewModel(this._repository);
+  NoteViewModel(
+    this._repository, {
+    WorkspaceRepository? workspaceRepository,
+  }) : _workspaceRepository = workspaceRepository ?? WorkspaceRepository();
 
   static const defaultCategories = [
     'Lecture notes',
@@ -23,12 +30,21 @@ class NoteViewModel extends ChangeNotifier {
   ];
 
   final NoteRepository _repository;
+  final WorkspaceRepository _workspaceRepository;
   StreamSubscription<List<NoteModel>>? _notesSubscription;
   StreamSubscription<List<NoteModel>>? _pendingSubscription;
+  StreamSubscription<WorkspaceLibrarySnapshot>? _workspaceSubscription;
 
   String? _boundUserId;
   List<NoteModel> _notes = [];
   List<NoteModel> _pendingSharedNotes = [];
+  List<PersonalWorkspace> _workspaces = [];
+  Map<String, String> _workspaceAssignments = const {};
+  WorkspaceSelection _workspaceSelection = WorkspaceSelection.all;
+  WorkspaceSelection? _pendingWorkspaceSelection;
+  WorkspaceLibraryStatus _workspaceStatus = WorkspaceLibraryStatus.loading;
+  String? _workspaceErrorMessage;
+  bool _workspaceAssignmentsKnown = false;
   String _searchQuery = '';
   int _searchRevision = 0;
   String _selectedCategory = 'All';
@@ -52,6 +68,22 @@ class NoteViewModel extends ChangeNotifier {
 
   LibraryFilter get libraryFilter => _libraryFilter;
   NoteSort get sort => _sort;
+  List<PersonalWorkspace> get workspaces => List.unmodifiable(_workspaces);
+  WorkspaceSelection get workspaceSelection => _workspaceSelection;
+  WorkspaceLibraryStatus get workspaceStatus => _workspaceStatus;
+  String? get workspaceErrorMessage => _workspaceErrorMessage;
+  bool get workspaceAssignmentsKnown => _workspaceAssignmentsKnown;
+  String get workspaceSelectionLabel {
+    if (_workspaceSelection.isAll) return 'All workspaces';
+    if (_workspaceSelection.isDefault) return 'Default';
+    for (final workspace in _workspaces) {
+      if (workspace.id == _workspaceSelection.workspaceId) {
+        return workspace.name;
+      }
+    }
+    return 'All workspaces';
+  }
+
   List<NoteModel> get liveNotes => _notes.where((n) => n.isLive).toList();
   int get totalLive => liveNotes.length;
 
@@ -76,14 +108,15 @@ class NoteViewModel extends ChangeNotifier {
 
   List<NoteModel> get filteredNotes {
     return _notes.where((note) {
-      final categoryMatches =
-          _selectedCategory == 'All' || note.category == _selectedCategory;
       final filterMatches = switch (_libraryFilter) {
         LibraryFilter.all => true,
         LibraryFilter.favorites => note.isFavorite,
         LibraryFilter.live => note.isLive,
       };
-      return categoryMatches && filterMatches && note.matches(_searchQuery);
+      return _workspaceMatches(note) &&
+          _categoryMatches(note) &&
+          _searchMatches(note) &&
+          filterMatches;
     }).toList()
       ..sort((a, b) => switch (_sort) {
             NoteSort.lastEdited => b.updatedAt.compareTo(a.updatedAt),
@@ -92,6 +125,13 @@ class NoteViewModel extends ChangeNotifier {
               a.title.toLowerCase().compareTo(b.title.toLowerCase()),
           });
   }
+
+  int get visibleAllCount => _visibleBeforeStatus().length;
+  int get visibleFavoriteCount =>
+      _visibleBeforeStatus().where((note) => note.isFavorite).length;
+  int get visibleLiveCount =>
+      _visibleBeforeStatus().where((note) => note.isLive).length;
+  int get workspaceScopedCount => _notes.where(_workspaceMatches).length;
 
   List<NoteModel> get favoriteNotes {
     return _notes.where((note) => note.isFavorite).toList();
@@ -112,11 +152,21 @@ class NoteViewModel extends ChangeNotifier {
     _boundUserId = userId;
     _notesSubscription?.cancel();
     _pendingSubscription?.cancel();
+    _workspaceSubscription?.cancel();
     _notes = [];
     _pendingSharedNotes = [];
+    _workspaces = [];
+    _workspaceAssignments = const {};
+    _workspaceSelection = WorkspaceSelection.all;
+    _pendingWorkspaceSelection = null;
+    _workspaceStatus = WorkspaceLibraryStatus.loading;
+    _workspaceErrorMessage = null;
+    _workspaceAssignmentsKnown = false;
     _searchQuery = '';
     _searchRevision++;
     _selectedCategory = 'All';
+    _libraryFilter = LibraryFilter.all;
+    _sort = NoteSort.lastEdited;
     _isLoading = false;
     _errorMessage = null;
 
@@ -129,12 +179,14 @@ class NoteViewModel extends ChangeNotifier {
     notifyListeners();
     _notesSubscription = _repository.watchNotes(userId).listen(
       (notes) {
+        if (_boundUserId != userId) return;
         _notes = notes;
         _errorMessage = null;
         _isLoading = false;
         notifyListeners();
       },
       onError: (Object error) {
+        if (_boundUserId != userId) return;
         _errorMessage = error.toString();
         _isLoading = false;
         notifyListeners();
@@ -142,14 +194,113 @@ class NoteViewModel extends ChangeNotifier {
     );
     _pendingSubscription = _repository.watchPendingSharedNotes(userId).listen(
       (notes) {
+        if (_boundUserId != userId) return;
         _pendingSharedNotes = notes;
         notifyListeners();
       },
       onError: (Object error) {
+        if (_boundUserId != userId) return;
         _errorMessage = error.toString();
         notifyListeners();
       },
     );
+    _bindWorkspaceState(userId);
+  }
+
+  void _bindWorkspaceState(String userId) {
+    _workspaceSubscription = _workspaceRepository.watchLibrary(userId).listen(
+      (snapshot) {
+        if (_boundUserId != userId) return;
+        _applyWorkspaceSnapshot(snapshot);
+      },
+      onError: (Object error) {
+        if (_boundUserId != userId) return;
+        _workspaceStatus = WorkspaceLibraryStatus.unavailable;
+        _workspaceErrorMessage = error.toString();
+        notifyListeners();
+      },
+    );
+    _workspaceRepository.loadSelection(userId).then((selection) {
+      if (_boundUserId != userId) return;
+      _pendingWorkspaceSelection = selection;
+      _resolvePendingWorkspaceSelection();
+      notifyListeners();
+    }).catchError((Object _) {});
+  }
+
+  void _applyWorkspaceSnapshot(WorkspaceLibrarySnapshot snapshot) {
+    _workspaces = snapshot.workspaces;
+    _workspaceAssignments = snapshot.assignments;
+    _workspaceAssignmentsKnown = snapshot.hasAssignmentData;
+    _workspaceErrorMessage = snapshot.errorMessage;
+    if (!snapshot.hasAssignmentData) {
+      _workspaceStatus = WorkspaceLibraryStatus.unavailable;
+    } else {
+      _workspaceStatus = snapshot.fromCache
+          ? WorkspaceLibraryStatus.cached
+          : WorkspaceLibraryStatus.ready;
+    }
+    _resolvePendingWorkspaceSelection();
+    _ensureWorkspaceSelectionExists();
+    notifyListeners();
+  }
+
+  void _resolvePendingWorkspaceSelection() {
+    final pending = _pendingWorkspaceSelection;
+    if (pending == null) return;
+    if (!_workspaceAssignmentsKnown && !pending.isAll) return;
+    _pendingWorkspaceSelection = null;
+    if (pending.isNamed &&
+        !_workspaces.any((workspace) => workspace.id == pending.workspaceId)) {
+      _workspaceSelection = WorkspaceSelection.all;
+      _persistWorkspaceSelection();
+      return;
+    }
+    _workspaceSelection = pending;
+  }
+
+  void _ensureWorkspaceSelectionExists() {
+    if (!_workspaceSelection.isNamed) return;
+    if (_workspaces
+        .any((workspace) => workspace.id == _workspaceSelection.workspaceId)) {
+      return;
+    }
+    _workspaceSelection = WorkspaceSelection.all;
+    _persistWorkspaceSelection();
+  }
+
+  void updateWorkspaceSelection(WorkspaceSelection selection) {
+    if (!selection.isAll) {
+      if (!_workspaceAssignmentsKnown) return;
+      if (selection.isNamed &&
+          !_workspaces
+              .any((workspace) => workspace.id == selection.workspaceId)) {
+        return;
+      }
+    }
+    _workspaceSelection = selection;
+    _pendingWorkspaceSelection = null;
+    _persistWorkspaceSelection();
+    notifyListeners();
+  }
+
+  void resetWorkspaceSelection() =>
+      updateWorkspaceSelection(WorkspaceSelection.all);
+
+  void retryWorkspaces() {
+    if (_boundUserId == null) return;
+    _workspaceStatus = WorkspaceLibraryStatus.loading;
+    _workspaceErrorMessage = null;
+    notifyListeners();
+    _workspaceRepository.refresh();
+  }
+
+  void _persistWorkspaceSelection() {
+    final userId = _boundUserId;
+    if (userId == null) return;
+    _workspaceRepository
+        .saveSelection(userId, _workspaceSelection)
+        .catchError((Object _) {});
   }
 
   void updateLibraryFilter(LibraryFilter filter) {
@@ -281,6 +432,27 @@ class NoteViewModel extends ChangeNotifier {
     _isDisposed = true;
     _notesSubscription?.cancel();
     _pendingSubscription?.cancel();
+    _workspaceSubscription?.cancel();
     super.dispose();
   }
+
+  bool _workspaceMatches(NoteModel note) {
+    if (_workspaceSelection.isAll) return true;
+    if (!_workspaceAssignmentsKnown) return false;
+    final workspaceId = _workspaceAssignments[note.noteId] ??
+        WorkspaceSelection.defaultWorkspaceId;
+    return workspaceId == _workspaceSelection.workspaceId;
+  }
+
+  bool _categoryMatches(NoteModel note) =>
+      _selectedCategory == 'All' || note.category == _selectedCategory;
+
+  bool _searchMatches(NoteModel note) => note.matches(_searchQuery);
+
+  List<NoteModel> _visibleBeforeStatus() => _notes
+      .where((note) =>
+          _workspaceMatches(note) &&
+          _categoryMatches(note) &&
+          _searchMatches(note))
+      .toList();
 }
