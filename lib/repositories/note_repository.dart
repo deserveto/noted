@@ -895,7 +895,7 @@ class NoteRepository {
 
     final row =
         await client.from('notes').select().eq('note_id', noteId).maybeSingle();
-    if (row == null) return null;
+    if (row == null || client.auth.currentUser?.id != uid) return null;
     final model = NoteModel.fromMap(Map<String, dynamic>.from(row));
     if (model.userId != uid &&
         !model.liveMemberIds.contains(uid) &&
@@ -909,10 +909,17 @@ class NoteRepository {
         .eq('user_id', uid)
         .eq('note_id', noteId)
         .maybeSingle();
+    if (client.auth.currentUser?.id != uid) return null;
     return model.copyWith(isFavorite: fav != null);
   }
 
-  Stream<NoteModel?> watchNote(String noteId) {
+  Stream<NoteModel?> watchNote(String noteId) => _watchNote(noteId);
+
+  /// Pending invitations require current server authorization, including media.
+  Stream<NoteModel?> watchSharedPreview(String noteId) =>
+      _watchNote(noteId, allowOffline: false);
+
+  Stream<NoteModel?> _watchNote(String noteId, {bool allowOffline = true}) {
     final client = _maybeClient;
     final uid = client?.auth.currentUser?.id;
     if (client == null || noteId.isEmpty) {
@@ -936,6 +943,14 @@ class NoteRepository {
         }
         final note = await getNoteById(noteId);
         if (request != generation || client.auth.currentUser?.id != uid) return;
+        // Pending-share previews must never revive cached or queued content
+        // after server authorization has been lost.
+        if (!allowOffline) {
+          if (!controller.isClosed) {
+            controller.add(note?.deletedAt == null ? note : null);
+          }
+          return;
+        }
         if (note == null || note.deletedAt != null) {
           final outbox = await _offlineStore.loadOutbox(uid!);
           final pendingCreate = outbox.where((op) =>
@@ -956,7 +971,7 @@ class NoteRepository {
           controller.add(overlay.where((n) => n.noteId == noteId).firstOrNull);
         }
       } catch (err) {
-        if (_isTransientOfflineError(err) && uid != null) {
+        if (allowOffline && _isTransientOfflineError(err) && uid != null) {
           final cached = await _offlineStore.loadCachedNotes(uid);
           final outbox = await _offlineStore.loadOutbox(uid);
           final overlay = _offlineStore.applyOutboxOverlay(cached, outbox);

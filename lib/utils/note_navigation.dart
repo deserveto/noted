@@ -5,12 +5,21 @@ import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
 import '../views/add_edit_note_page.dart';
+import '../views/shared_note_preview_page.dart';
 import 'app_colors.dart';
 
-void openNote(BuildContext context, NoteModel note) =>
-    Navigator.of(context).push(MaterialPageRoute<void>(
-        settings: RouteSettings(name: '/notes/${note.noteId}'),
-        builder: (_) => AddEditNotePage(note: note)));
+void openNote(BuildContext context, NoteModel note) {
+  // Keep the route read-only for its entire lifetime, including account changes.
+  // Activity may also dispose the caller's sheet context after pushing.
+  final pending = note.pendingSharedWithUserIds
+      .contains(context.read<AuthViewModel>().user?.uid);
+  Navigator.of(context).push(MaterialPageRoute<void>(
+      settings: RouteSettings(name: '/notes/${note.noteId}'),
+      builder: (_) => pending
+          ? SharedNotePreviewPage(noteId: note.noteId)
+          : AddEditNotePage(note: note)));
+}
+
 void createNote(BuildContext context, {DateTime? date}) {
   final user = context.read<AuthViewModel>().user;
   if (user == null) return;

@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../utils/app_colors.dart';
 import '../utils/note_navigation.dart';
-import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
 import '../widgets/category_chips.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/note_card.dart';
 import '../widgets/noted_ui.dart';
+import '../widgets/pending_share_actions.dart';
 import '../widgets/reference_icon.dart';
 import 'ai_page.dart';
 
@@ -403,32 +403,9 @@ class _NotesPageState extends State<NotesPage> {
               ])));
 }
 
-class _PendingCopy extends StatefulWidget {
+class _PendingCopy extends StatelessWidget {
   const _PendingCopy({required this.note});
   final NoteModel note;
-  @override
-  State<_PendingCopy> createState() => _PendingCopyState();
-}
-
-class _PendingCopyState extends State<_PendingCopy> {
-  bool _busy = false;
-  Future<void> _act(bool accept) async {
-    setState(() => _busy = true);
-    final vm = context.read<NoteViewModel>(),
-        user = context.read<AuthViewModel>().user;
-    if (accept) {
-      await vm.acceptShare(widget.note.noteId,
-          ownerName: user?.name ?? '', ownerEmail: user?.email ?? '');
-    } else {
-      await vm.declineShare(widget.note.noteId);
-    }
-    if (!mounted) return;
-    setState(() => _busy = false);
-    notedToast(
-        context,
-        vm.errorMessage ??
-            (accept ? 'Copy added to your notes' : 'Copy declined'));
-  }
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -437,22 +414,18 @@ class _PendingCopyState extends State<_PendingCopy> {
           padding: const EdgeInsets.all(12),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(widget.note.title.isEmpty ? 'Untitled' : widget.note.title,
+            Text(note.title.isEmpty ? 'Untitled' : note.title,
                 style: Theme.of(context).textTheme.titleMedium),
             Text(
-                'From ${widget.note.ownerName.isEmpty ? widget.note.ownerEmail : widget.note.ownerName}',
+                'From ${note.ownerName.isEmpty ? note.ownerEmail : note.ownerName}',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                  child: OutlinedButton(
-                      onPressed: _busy ? null : () => _act(false),
-                      child: const Text('Decline'))),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: FilledButton(
-                      onPressed: _busy ? null : () => _act(true),
-                      child: Text(_busy ? 'Please wait…' : 'Accept copy')))
-            ])
+            SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                    onPressed: () => openNote(context, note),
+                    child: const Text('Preview'))),
+            const SizedBox(height: 8),
+            PendingShareActions(noteId: note.noteId),
           ])));
 }
