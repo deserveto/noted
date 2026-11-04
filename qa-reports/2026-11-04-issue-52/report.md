@@ -1,6 +1,6 @@
-# Issue #52 — pending shared-note preview evidence
+# Issue #52 — initial pending shared-note preview evidence
 
-Date: 2026-11-04 (Asia/Jakarta). **Delivery status: draft; issue remains open.**
+Date: 2026-11-04 (Asia/Jakarta). **Historical initial run.** The media-copy gate below was subsequently resolved on isolated staging; see [completed follow-up verification](staging/report.md), completed 2026-11-05.
 
 ## Source and artifact
 
@@ -108,7 +108,7 @@ The preview respects this boundary: pending-only media shows Image unavailable,
 while already-authorized media renders. No view/edit membership is granted by opening
 preview, and no Storage or note RLS policy was broadened.
 
-## Blocking acceptance gate — not fully verified
+## Initial blocking acceptance gate — resolved by the follow-up
 
 The configured backend accepted two inline-only synthetic notes but retained each
 sender/source-note private image URI inside the recipient's content. Neither copy
@@ -123,7 +123,7 @@ deployed version was not established. No backend deployment was performed to hid
 bypass the failure. `redacted-server-state.json` records the actual persisted mismatch
 without content, account IDs, tokens or signed URLs.
 
-Required next action: provide an authorized staging backend running the current
+Initial next action (now completed in the follow-up): provide an authorized staging backend running the current
 `note-sharing` implementation (including #51), build against its approved local
 configuration, and repeat the Android inline-only Accept/direct-card/retry scenarios.
 Confirm exactly one independently owned copy **and** independently copied private media,
@@ -131,9 +131,8 @@ then rerun affected checks/CI against the final PR head. A successful local mock
 or APK build does not resolve this gate. No Docker or Supabase CLI executable was on
 PATH for constructing a replacement local environment in this session.
 
-The PR must remain draft and #52 open until that gate and required CI/reviews are
-satisfied. This fix is neither merged nor released; no success reply or issue closure
-is authorized by the evidence collected here.
+At the time of this initial run, the PR was kept draft and #52 open until that gate and required CI/reviews were
+satisfied. This initial evidence alone did not authorize success or closure. See the follow-up report for the completed staging verification and current delivery gates.
 
 ## Cleanup and preserved work
 

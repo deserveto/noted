@@ -1,0 +1,190 @@
+[
+  {
+    "scenario": "Real staging RLS",
+    "strangerReadableRows": 0,
+    "anonymousReadableRows": 0,
+    "pendingEditRpcStatus": 403,
+    "viewAuthorizedMediaSignStatus": 200,
+    "strangerMediaSignStatus": 400
+  },
+  {
+    "scenario": "Staging provenance",
+    "implementationCommit": "acd0785688a7df23185219728b4d76641a0d7b43",
+    "currentMediaHelperSha256": "b9ad29160a080527cdbf0f8db3054ed887e8df354948d766c50674f8eb840a57",
+    "deployedOldHelperHasInlineScanner": false,
+    "stagingHelperHasInlineScanner": true,
+    "notificationFreeAuthorizedMediaPrepared": true
+  },
+  {
+    "scenario": "Real current-backend inline-only copy probe",
+    "created": 201,
+    "upload": 200,
+    "queued": 200,
+    "accepted": 200,
+    "ownedCopies": 1,
+    "copyOwnedByRecipient": true,
+    "referenceUsesCopyPrefix": true,
+    "referenceRetainsSource": false,
+    "copiedObjectDownloaded": 200,
+    "copyBytesMatchSource": true,
+    "sourceMediaDeniedAfterAcceptance": 400,
+    "retryStatus": 403,
+    "copiesAfterRetry": 1
+  },
+  {
+    "scenario": "Android notification-free Library preview and leave",
+    "notificationCount": 0,
+    "fullTextAndListVisible": true,
+    "authorizedImageVisible": true,
+    "acceptAvailable": true,
+    "declineAvailable": true,
+    "noOwnerActions": true,
+    "contentUnchanged": true,
+    "ownerUnchanged": true,
+    "revisionBefore": 0,
+    "revisionAfter": 0,
+    "stillPending": true,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android preview Accept and independent inline media",
+    "ownedCopies": 1,
+    "recipientOwnsCopy": true,
+    "sourceContentUnchanged": true,
+    "sourceOwnerUnchanged": true,
+    "sourceRevisionUnchanged": true,
+    "pendingRemoved": true,
+    "copyUsesIndependentStorage": true,
+    "sourceReferenceAbsent": true,
+    "copiedImageDownload": 200,
+    "copiedBytesMatch": true,
+    "retryStatuses": [
+      403,
+      403
+    ],
+    "copiesAfterRetries": 1
+  },
+  {
+    "scenario": "Android owned copy survives source-image removal",
+    "sourceImageRemovalStatus": 200,
+    "copyImageStillDownloads": 200,
+    "copyImageBytesMatch": true,
+    "copyImageVisible": true,
+    "copyTitleVisible": true
+  },
+  {
+    "scenario": "Android deterministic busy and repeated-input control",
+    "pleaseWaitVisible": true,
+    "declineDisabled": true,
+    "acceptDisabled": true,
+    "schedulingControl": "local Edge Runtime paused before tap and resumed after repeated inputs"
+  },
+  {
+    "scenario": "Android direct Accept preserves independent media",
+    "ownedCopies": 1,
+    "recipientOwnsCopy": true,
+    "copyPathIndependent": true,
+    "sourceReferenceAbsent": true,
+    "imageDownload": 200,
+    "imageBytesMatch": true,
+    "sourceContentUnchanged": true,
+    "sourceOwnerUnchanged": true,
+    "invitationRemoved": true,
+    "cardRemoved": true
+  },
+  {
+    "scenario": "Android direct Decline",
+    "invitationRemoved": true,
+    "ownedCopies": 0,
+    "cardRemoved": true
+  },
+  {
+    "scenario": "Android preview Decline",
+    "invitationRemoved": true,
+    "ownedCopies": 0,
+    "sourceContentUnchanged": true,
+    "previewClosed": true
+  },
+  {
+    "scenario": "Android Activity opens the same read-only preview in dark mode",
+    "previewVisible": true,
+    "fullTextVisible": true,
+    "acceptAvailable": true,
+    "declineAvailable": true,
+    "noOwnerControls": true
+  },
+  {
+    "scenario": "Android delete after listing before preview",
+    "listed": true,
+    "deleteStatus": 204,
+    "unavailable": true,
+    "sourceRowsForRecipient": 0,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android delete while preview open",
+    "fullTextVisibleBeforeDelete": true,
+    "previewUnavailable": true,
+    "observationSeconds": 33,
+    "noDecisionButtons": true,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android invitation removed after listing",
+    "listed": true,
+    "removalStatus": 204,
+    "previewUnavailable": true,
+    "recipientRows": 0,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android invitation removed while preview open",
+    "fullTextBeforeRemoval": true,
+    "previewUnavailable": true,
+    "observationSeconds": 33,
+    "decisionsRemoved": true,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android controlled backend failure",
+    "loadingShown": true,
+    "errorShown": true,
+    "retryVisible": true,
+    "contentHidden": true,
+    "decisionsHidden": true
+  },
+  {
+    "scenario": "Android Retry after backend recovery",
+    "fullTextVisible": true,
+    "privateImageVisible": true,
+    "decisionsRestored": true,
+    "stillPending": true,
+    "sourceRevision": 0,
+    "sourceContentUnchanged": true,
+    "ownedCopies": 0
+  },
+  {
+    "scenario": "Android account switch isolates recipient data",
+    "strangerLibraryNoInvitations": true,
+    "noRecipientFixtureTitles": true,
+    "serverReadableSharedSourceRows": 0
+  },
+  {
+    "scenario": "Android stranger deep link cannot expose the source",
+    "unavailable": true,
+    "noSourceTitle": true,
+    "noSourceText": true,
+    "noSourceImage": true,
+    "privateMediaSignStatus": 400
+  },
+  {
+    "scenario": "Final staging provenance",
+    "sourceMatchesCommitIgnoringLineEndings": true,
+    "normalizedMediaHelperSha256": "b9ad29160a080527cdbf0f8db3054ed887e8df354948d766c50674f8eb840a57",
+    "migrationCount": 13,
+    "privateBucketsUnchanged": true,
+    "releaseApkSha256": "08ECC2ECD3277348A37A381EB2B2D9EB84171B374D33775D5FBECB40D80F6D33",
+    "version": "2.0.0 (3)",
+    "device": "sdk_gphone64_x86_64 / Android 13 API 33"
+  }
+]
