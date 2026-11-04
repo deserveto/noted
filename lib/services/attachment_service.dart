@@ -62,4 +62,13 @@ class AttachmentService {
       if (duration != null) 'duration': duration,
     };
   }
+
+  /// Removes an uploaded object that was never referenced by a note document.
+  Future<void> remove(String objectPath) async {
+    final clean = objectPath.trim().replaceFirst(RegExp(r'^/+'), '');
+    if (clean.isEmpty) return;
+    await _client.storage
+        .from(MediaUrlResolver.noteMediaBucket)
+        .remove([clean]);
+  }
 }

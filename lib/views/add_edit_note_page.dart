@@ -11,11 +11,13 @@ import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
 import '../services/attachment_service.dart';
 import '../services/collaboration_service.dart';
+import '../services/media_url_resolver.dart';
 import '../utils/app_colors.dart';
 import '../utils/markdown_formatter.dart';
 import '../utils/document_codec.dart';
 import '../utils/inline_ai_edit.dart';
 import '../utils/collaborative_document.dart';
+import '../utils/note_image_document.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
@@ -26,25 +28,46 @@ import '../widgets/note_share_sheet.dart';
 import '../widgets/note_card.dart' show LiveAvatarStack;
 import '../widgets/live_metadata.dart';
 import '../repositories/profile_repository.dart';
-import '../widgets/noted_ui.dart' show notedSheet;
+import '../widgets/noted_ui.dart' show notedSheet, notedUndoSnackBar;
 import '../widgets/reference_icon.dart';
 import '../widgets/inline_ai_popup.dart';
 import 'ai_page.dart';
 import 'workspaces_page.dart';
 
+typedef NoteImagePicker = Future<XFile?> Function();
+
 class AddEditNotePage extends StatefulWidget {
   const AddEditNotePage(
-      {this.note, this.initialDate, this.repository, super.key});
+      {this.note,
+      this.initialDate,
+      this.repository,
+      this.attachmentService,
+      this.pickImage,
+      super.key});
   final NoteModel? note;
   final DateTime? initialDate;
   final NoteRepository? repository;
+  final AttachmentService? attachmentService;
+  final NoteImagePicker? pickImage;
   @override
   State<AddEditNotePage> createState() => _AddEditNotePageState();
+}
+
+class _PendingImageMove {
+  _PendingImageMove.inline(this.inlineTracker) : attachment = null;
+  _PendingImageMove.trailing(this.attachment) : inlineTracker = null;
+
+  final DocumentImageAnchor? inlineTracker;
+  final Map<String, dynamic>? attachment;
+
+  bool get isValid => inlineTracker?.isValid ?? true;
 }
 
 class _AddEditNotePageState extends State<AddEditNotePage>
     with WidgetsBindingObserver {
   late final NoteRepository _repository;
+  late final AttachmentService _attachments;
+  late final NoteImagePicker _pickImage;
   final _title = TextEditingController();
   final _body = TextEditingController();
   final _titleFocus = FocusNode();
@@ -68,6 +91,10 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   bool _saving = false;
   bool _deleting = false;
   bool _uploading = false;
+  DocumentInsertionAnchor? _imageInsertionAnchor;
+  _PendingImageMove? _imageMove;
+  int? _imageMoveTarget;
+  bool _imageMoveBusy = false;
   bool _focusMode = false;
   bool _format = false;
   bool _canPop = false;
@@ -85,6 +112,8 @@ class _AddEditNotePageState extends State<AddEditNotePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _repository = widget.repository ?? NoteRepository();
+    _attachments = widget.attachmentService ?? AttachmentService();
+    _pickImage = widget.pickImage ?? _pickImageFromGallery;
     _title.addListener(_changed);
     _body.addListener(_changed);
     _rich.addListener(_richChanged);
@@ -171,11 +200,181 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   }
 
   void _richChanged() {
+    _imageInsertionAnchor?.update(_rich.document);
+    final move = _imageMove;
+    if (move != null) {
+      move.inlineTracker?.update(_rich.document);
+      _refreshImageMoveTarget();
+    }
     if (_loadingText || _documentError != null) return;
     final encoded = DocumentCodec.encode(_rich.document);
     if (encoded == _richBaseline) return;
     _richBaseline = encoded;
     _body.text = encoded;
+  }
+
+  int _insertionOffset() {
+    final maximum = (_rich.document.length - 1).clamp(0, _rich.document.length);
+    final selection = _rich.selection;
+    if (selection.isValid) {
+      return selection.extentOffset.clamp(0, maximum);
+    }
+    return maximum;
+  }
+
+  void _refreshImageMoveTarget() {
+    final move = _imageMove;
+    if (move == null || _imageMoveBusy || !mounted) return;
+    final selection = _rich.selection;
+    if (!selection.isValid || !selection.isCollapsed) return;
+    final maximum = (_rich.document.length - 1).clamp(0, _rich.document.length);
+    final target = selection.extentOffset.clamp(0, maximum);
+    final source = move.inlineTracker?.index;
+    if (source != null && (target == source || target == source + 1)) {
+      if (_imageMoveTarget != null) setState(() => _imageMoveTarget = null);
+      return;
+    }
+    if (_imageMoveTarget != target) setState(() => _imageMoveTarget = target);
+  }
+
+  void _startInlineImageMove(String reference, int index) {
+    if (!_editable || _imageMoveBusy) return;
+    final tracker = DocumentImageAnchor(
+      document: _rich.document,
+      reference: reference,
+      index: index,
+    );
+    if (!tracker.isValid) {
+      setState(() => _error = 'That image is no longer in the note.');
+      return;
+    }
+    setState(() {
+      _imageMove = _PendingImageMove.inline(tracker);
+      _imageMoveTarget = null;
+    });
+    _bodyFocus.requestFocus();
+    _refreshImageMoveTarget();
+  }
+
+  void _startTrailingImageMove(Map<String, dynamic> attachment) {
+    if (!_editable || _imageMoveBusy) return;
+    if (NoteImageDocument.attachmentReference(attachment) == null) {
+      setState(() => _error = 'This image cannot be moved into the note.');
+      return;
+    }
+    setState(() {
+      _imageMove = _PendingImageMove.trailing(attachment);
+      _imageMoveTarget = null;
+    });
+    _bodyFocus.requestFocus();
+    _refreshImageMoveTarget();
+  }
+
+  void _cancelImageMove() {
+    if (_imageMoveBusy) return;
+    setState(() {
+      _imageMove = null;
+      _imageMoveTarget = null;
+    });
+  }
+
+  Future<void> _confirmImageMove() async {
+    final move = _imageMove;
+    final target = _imageMoveTarget;
+    if (move == null || target == null || _imageMoveBusy) return;
+    setState(() => _imageMoveBusy = true);
+    var moved = false;
+    try {
+      final document = _rich.document;
+      final maximum = (document.length - 1).clamp(0, document.length);
+      final destination = target.clamp(0, maximum);
+      final inline = move.inlineTracker;
+      if (inline != null) {
+        inline.update(document);
+        if (!inline.isValid) {
+          throw StateError('That image is no longer in the note.');
+        }
+        if (destination == inline.index || destination == inline.index + 1) {
+          setState(() {
+            _imageMove = null;
+            _imageMoveTarget = null;
+            _imageMoveBusy = false;
+          });
+          return;
+        }
+        if (!NoteImageDocument.moveImage(
+          _rich,
+          from: inline.index,
+          to: destination,
+        )) {
+          throw StateError('That image is no longer in the note.');
+        }
+      } else {
+        final attachmentKey = NoteImageDocument.attachmentKey(move.attachment!);
+        if (!_note!.attachments.any(
+            (item) => NoteImageDocument.attachmentKey(item) == attachmentKey)) {
+          throw StateError('This image is no longer attached to the note.');
+        }
+        final reference =
+            NoteImageDocument.attachmentReference(move.attachment!);
+        if (reference == null) {
+          throw StateError('This image is not available.');
+        }
+        final existing = NoteImageDocument.indexOf(document, reference);
+        if (existing != null) {
+          if (destination != existing && destination != existing + 1) {
+            NoteImageDocument.moveImage(
+              _rich,
+              from: existing,
+              to: destination,
+            );
+          }
+        } else {
+          NoteImageDocument.insertImage(_rich, destination, reference);
+        }
+      }
+      moved = true;
+      if (mounted) {
+        setState(() {
+          _imageMove = null;
+          _imageMoveTarget = null;
+          _imageMoveBusy = false;
+        });
+      }
+      final saved = await _save();
+      if (saved && mounted) {
+        notedUndoSnackBar(context, 'Image moved', onUndo: () {
+          _rich.undo();
+          _save();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _imageMove = null;
+          _imageMoveTarget = null;
+          _imageMoveBusy = false;
+          _error = 'Could not move image: $e';
+        });
+      }
+    } finally {
+      if (!moved && mounted) {
+        setState(() => _imageMoveBusy = false);
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _visibleAttachments(NoteModel note) {
+    final inline = NoteImageDocument.images(_rich.document)
+        .map((image) => NoteImageDocument.canonicalReference(image.reference))
+        .toSet();
+    return note.attachments.where((attachment) {
+      final type = attachment['type'];
+      if (type != 'image' && type != 'doodle') return true;
+      final reference = NoteImageDocument.attachmentReference(attachment);
+      return reference == null ||
+          !inline.contains(NoteImageDocument.canonicalReference(reference));
+    }).toList();
   }
 
   bool _mergeRemote(NoteModel remote, {NoteModel? original}) {
@@ -597,6 +796,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                             child: Text(_conflict != null ? 'Review' : 'Retry'))
                       ]))),
             if (_uploading) const LinearProgressIndicator(),
+            if (_imageMove != null) _imageMoveBanner(scheme),
             Expanded(
                 child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
@@ -705,8 +905,18 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                                 scrollController: _richScroll,
                                 config: quill.QuillEditorConfig(
                                   editorKey: _editorKey,
-                                  embedBuilders: const [RichNoteEmbed()],
-                                  unknownEmbedBuilder: const RichNoteEmbed(),
+                                  embedBuilders: [
+                                    RichNoteEmbed(
+                                      onMove: _editable
+                                          ? _startInlineImageMove
+                                          : null,
+                                    )
+                                  ],
+                                  unknownEmbedBuilder: RichNoteEmbed(
+                                    onMove: _editable
+                                        ? _startInlineImageMove
+                                        : null,
+                                  ),
                                   scrollable: false,
                                   autoFocus: false,
                                   placeholder: 'Start writing…',
@@ -756,18 +966,30 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                                 ),
                               ),
                             ),
-                          for (var i = 0; i < note.attachments.length; i++)
+                          for (final attachment in _visibleAttachments(note))
                             NoteAttachment(
-                                key: ValueKey(note.attachments[i]['path'] ??
-                                    note.attachments[i]['url']),
-                                attachment: note.attachments[i],
+                                key: ValueKey(NoteImageDocument.attachmentKey(
+                                    attachment)),
+                                attachment: attachment,
                                 onRemove: _editable
                                     ? () {
-                                        final items = [...note.attachments]
-                                          ..removeAt(i);
+                                        final key =
+                                            NoteImageDocument.attachmentKey(
+                                                attachment);
+                                        final items = note.attachments
+                                            .where((item) =>
+                                                NoteImageDocument.attachmentKey(
+                                                    item) !=
+                                                key)
+                                            .toList();
                                         _changeNote(
                                             note.copyWith(attachments: items));
                                       }
+                                    : null,
+                                onMove: _editable &&
+                                        (attachment['type'] == 'image' ||
+                                            attachment['type'] == 'doodle')
+                                    ? () => _startTrailingImageMove(attachment)
                                     : null),
                           if (note.isLive)
                             StreamBuilder<List<Map<String, dynamic>>>(
@@ -844,6 +1066,54 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                       ])),
           ])),
         ));
+  }
+
+  Widget _imageMoveBanner(ColorScheme scheme) {
+    final move = _imageMove!;
+    final valid = move.isValid;
+    final target = _imageMoveTarget;
+    final message = !valid
+        ? 'That image is no longer in the note.'
+        : target == null
+            ? 'Tap in the note where the image should go.'
+            : 'The image will move to the selected position.';
+    return Material(
+      color: scheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              ReferenceIcon('target',
+                  size: 18, color: scheme.onPrimaryContainer),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    message,
+                    style: TextStyle(color: scheme.onPrimaryContainer),
+                  ),
+                ),
+              ),
+            ]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              TextButton(
+                onPressed: _imageMoveBusy ? null : _cancelImageMove,
+                child: const Text('Cancel'),
+              ),
+              if (valid && target != null)
+                FilledButton(
+                  onPressed: _imageMoveBusy ? null : _confirmImageMove,
+                  child: Text(_imageMoveBusy ? 'Moving…' : 'Move here'),
+                ),
+            ]),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _tool(String label, String icon, VoidCallback action) => IconButton(
@@ -1120,15 +1390,21 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   }
 
   Future<void> _attach(String type) async {
+    DocumentInsertionAnchor? anchor;
     try {
       Uint8List? bytes;
       String name;
       String mime;
       int? duration;
       if (type == 'image') {
-        final image = await ImagePicker().pickImage(
-            source: ImageSource.gallery, maxWidth: 2400, imageQuality: 90);
+        anchor = DocumentInsertionAnchor(
+          document: _rich.document,
+          offset: _insertionOffset(),
+        );
+        _imageInsertionAnchor = anchor;
+        final image = await _pickImage();
         if (image == null) return;
+        if (!mounted) return;
         bytes = await image.readAsBytes();
         name = image.name;
         mime = image.mimeType ?? 'image/jpeg';
@@ -1154,8 +1430,8 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         mime = 'audio/mp4';
       }
       if (!mounted) return;
-      await _save(forceCreate: true);
-      if (!mounted) return;
+      final saved = await _save(forceCreate: true);
+      if (!mounted || !saved) return;
       // An existing no-op save may have been in flight before the force request.
       if (_note!.noteId.isEmpty) await _save(forceCreate: true);
       if (!mounted) return;
@@ -1163,14 +1439,32 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         throw StateError('Save this note before uploading an attachment.');
       }
       setState(() => _uploading = true);
-      final item = await AttachmentService().upload(
+      final item = await _attachments.upload(
           noteId: _note!.noteId,
           bytes: bytes,
           type: type,
           name: name,
           contentType: mime,
           duration: duration);
-      if (mounted) {
+      if (type == 'image') {
+        final path = item['path'] as String? ?? '';
+        if (!mounted) {
+          await _discardUpload(path);
+          return;
+        }
+        anchor?.update(_rich.document);
+        final reference = path.isNotEmpty
+            ? MediaUrlResolver.canonicalUri(
+                MediaUrlResolver.noteMediaBucket, path)
+            : (item['url'] as String?)?.trim() ?? '';
+        if (anchor == null || reference.isEmpty) {
+          await _discardUpload(path);
+          throw StateError(
+              'The note changed while the image was uploading. Try again.');
+        }
+        NoteImageDocument.insertImage(_rich, anchor.offset, reference);
+        await _save();
+      } else if (mounted) {
         _changeNote(
             _note!.copyWith(attachments: [..._note!.attachments, item]));
         await _save();
@@ -1178,7 +1472,22 @@ class _AddEditNotePageState extends State<AddEditNotePage>
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not add attachment: $e');
     } finally {
+      if (identical(_imageInsertionAnchor, anchor)) {
+        _imageInsertionAnchor = null;
+      }
       if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  static Future<XFile?> _pickImageFromGallery() => ImagePicker()
+      .pickImage(source: ImageSource.gallery, maxWidth: 2400, imageQuality: 90);
+
+  Future<void> _discardUpload(String path) async {
+    if (path.trim().isEmpty) return;
+    try {
+      await _attachments.remove(path);
+    } catch (_) {
+      // The note-deletion/media-copy cleanup also removes unreferenced prefixes.
     }
   }
 
@@ -1258,21 +1567,16 @@ class _AddEditNotePageState extends State<AddEditNotePage>
           _canPop = true;
           Navigator.pop(context);
           if (id.isNotEmpty) {
-            messenger.hideCurrentSnackBar();
-            messenger.showSnackBar(SnackBar(
-              content: Text('Deleted “$title”'),
-              duration: const Duration(milliseconds: 4500),
-              action: SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () async {
-                    try {
-                      await repository.restoreNote(id);
-                    } catch (error) {
-                      messenger.showSnackBar(
-                          SnackBar(content: Text('Could not restore: $error')));
-                    }
-                  }),
-            ));
+            notedUndoSnackBar(context, 'Deleted “$title”', onUndo: () async {
+              try {
+                await repository.restoreNote(id);
+              } catch (error) {
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                      SnackBar(content: Text('Could not restore: $error')));
+                }
+              }
+            });
           }
         }
       } catch (e) {

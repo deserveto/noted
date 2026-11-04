@@ -55,11 +55,20 @@ class DocumentCodec {
           extensionSet: markdown.ExtensionSet.gitHubFlavored);
     }
     const escape = HtmlEscape(HtmlEscapeMode.element);
+    const attributeEscape = HtmlEscape(HtmlEscapeMode.attribute);
     final document = decode(value);
     final output = StringBuffer();
     var line = StringBuffer();
     for (final op in document.toDelta().toJson()) {
       final insert = op['insert'];
+      if (insert is Map) {
+        final image = insert['image'];
+        if (image is String && image.trim().isNotEmpty) {
+          line.write(
+              '<img src="${attributeEscape.convert(image.trim())}" alt="Note image">');
+        }
+        continue;
+      }
       if (insert is! String) continue;
       final attributes =
           Map<String, dynamic>.from(op['attributes'] as Map? ?? {});
