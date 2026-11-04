@@ -248,6 +248,10 @@ class NoteViewModel extends ChangeNotifier {
         ));
   }
 
+  /// Server-only authorization and content; never an offline invitation snapshot.
+  Stream<NoteModel?> watchSharedPreview(String noteId) =>
+      _repository.watchSharedPreview(noteId);
+
   Future<void> declineShare(String noteId) async {
     final userId = _boundUserId;
     if (userId == null) return;
