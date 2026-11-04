@@ -1,0 +1,40 @@
+{
+  "scope": "Synthetic QA52 fixtures only; no source content, account IDs, tokens or signed URLs",
+  "copies": [
+    {
+      "title": "QA52 direct",
+      "copyId": "e2670cc12d114de490d412a5dec53523",
+      "sourceNoteId": "qa52_direct_1793772803950",
+      "recipientOwnsCopy": true,
+      "inlineReferenceStillUsesSourceNote": true,
+      "inlineReferenceUsesCopyNote": false
+    },
+    {
+      "title": "QA52 accept",
+      "copyId": "649b7110d7024a19a77ad072cce459ba",
+      "sourceNoteId": "qa52_accept_1793772788575",
+      "recipientOwnsCopy": true,
+      "inlineReferenceStillUsesSourceNote": true,
+      "inlineReferenceUsesCopyNote": false
+    }
+  ],
+  "retries": {
+    "statuses": [
+      403,
+      403
+    ],
+    "acceptedCopyCountAfterRetries": 1
+  },
+  "readOnlyPreview": {
+    "sourceRevisionBefore": 0,
+    "sourceRevisionAfter": 0,
+    "ownedCopyCountBeforeAcceptance": 0,
+    "notificationCount": 0
+  },
+  "deletion": {
+    "beforeListingOpenDenied": true,
+    "whileOpenCleared": true,
+    "recipientRowsAfterDeletion": 0,
+    "ownedCopies": 0
+  }
+}
