@@ -23,6 +23,29 @@ class NoteRepository {
   static final StreamController<void> _localRefresh =
       StreamController<void>.broadcast();
   static final Map<String, Future<void>> _outboxFlushes = {};
+  static final Map<String, Future<void>> _mutationChains = {};
+
+  /// Serializes delete/restore server work per account so a later intent
+  /// always executes after an earlier one, including in-flight replay.
+  Future<T> _runSerialized<T>(String uid, Future<T> Function() action) {
+    final key = uid.isEmpty ? '__anonymous__' : uid;
+    final previous = _mutationChains[key] ?? Future<void>.value();
+    final result = Completer<T>();
+    late final Future<void> next;
+    next = previous.then((_) async {
+      try {
+        result.complete(await action());
+      } catch (error, stack) {
+        result.completeError(error, stack);
+      }
+    }).whenComplete(() {
+      if (identical(_mutationChains[key], next)) {
+        _mutationChains.remove(key);
+      }
+    });
+    _mutationChains[key] = next;
+    return result.future;
+  }
 
   /// Refreshes all active note streams after foreground/session recovery.
   void refresh() => _localRefresh.add(null);
@@ -117,13 +140,17 @@ class NoteRepository {
               );
             }
           case PendingNoteOpKind.softDelete:
-            await client.from('notes').update({
-              'deleted_at': DateTime.now().toUtc().toIso8601String(),
-            }).eq('note_id', op.noteId);
+            await _applyDeletionState(
+              client: client,
+              noteId: op.noteId,
+              deleted: true,
+            );
           case PendingNoteOpKind.restore:
-            await client.from('notes').update({
-              'deleted_at': null,
-            }).eq('note_id', op.noteId);
+            await _applyDeletionState(
+              client: client,
+              noteId: op.noteId,
+              deleted: false,
+            );
           case PendingNoteOpKind.toggleFavorite:
             if (op.local != null && op.favoriteValue != null) {
               await _applyFavoriteOnline(
@@ -193,6 +220,32 @@ class NoteRepository {
     if (rejected > 0) throw OfflineSyncException(rejected, rejectionCause);
   }
 
+  /// Writes `deleted_at` and verifies the authorized row was actually
+  /// affected. A zero-row write (missing, revoked or foreign note) throws
+  /// instead of reporting silent success. Idempotent: re-applying the same
+  /// terminal state succeeds.
+  Future<void> _applyDeletionState({
+    required SupabaseClient client,
+    required String noteId,
+    required bool deleted,
+  }) async {
+    final rows = await client
+        .from('notes')
+        .update({
+          'deleted_at':
+              deleted ? DateTime.now().toUtc().toIso8601String() : null,
+        })
+        .eq('note_id', noteId)
+        .select('note_id');
+    if (rows.isEmpty) {
+      throw StateError(
+        deleted
+            ? 'This note could not be deleted. It may have been removed or you no longer have access.'
+            : 'This note could not be restored. It may have been removed or you no longer have access.',
+      );
+    }
+  }
+
   Stream<List<NoteModel>> watchNotes(String userId) {
     final client = _maybeClient;
     if (client == null || userId.isEmpty) {
@@ -216,13 +269,29 @@ class NoteRepository {
       }
     }
 
-    Future<void> refresh() async {
+    Future<void> refresh({bool projectLocal = true}) async {
       final request = ++generation;
       OfflineSyncException? syncError;
       try {
         if (client.auth.currentUser?.id != userId) {
           if (!controller.isClosed) controller.add(const []);
           return;
+        }
+        // Project the durable local state immediately so a slow or failing
+        // refresh never leaves a stale card beside a deletion snackbar.
+        try {
+          final cachedEarly = await _offlineStore.loadCachedNotes(userId);
+          final outboxEarly = await _offlineStore.loadOutbox(userId);
+          if (projectLocal &&
+              request == generation &&
+              client.auth.currentUser?.id == userId &&
+              !controller.isClosed &&
+              (cachedEarly.isNotEmpty || outboxEarly.isNotEmpty)) {
+            controller.add(
+                _offlineStore.applyOutboxOverlay(cachedEarly, outboxEarly));
+          }
+        } catch (_) {
+          // Optimistic emission is best-effort; authoritative fetch follows.
         }
         try {
           await flushOfflineOutbox(userId);
@@ -310,7 +379,8 @@ class NoteRepository {
 
     controller = StreamController<List<NoteModel>>(
       onListen: () {
-        emitCachedIfAvailable().then((_) => refresh());
+        // Initial subscription already emitted its cached projection above.
+        emitCachedIfAvailable().then((_) => refresh(projectLocal: false));
         localSub = _localRefresh.stream.listen((_) => refresh());
         authSub = client.auth.onAuthStateChange.listen((_) => refresh());
         pollTimer =
@@ -591,54 +661,120 @@ class NoteRepository {
 
   Future<void> deleteNote(String noteId) async {
     final uid = _maybeClient?.auth.currentUser?.id ?? '';
-    try {
-      await _client.from('notes').update({
-        'deleted_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('note_id', noteId);
-      _localRefresh.add(null);
-    } catch (err) {
-      if (_isTransientOfflineError(err) && uid.isNotEmpty) {
-        await _offlineStore.enqueue(
-          uid,
-          PendingNoteOperation(
-            opId: _randomId(16),
-            kind: PendingNoteOpKind.softDelete,
-            noteId: noteId,
-            queuedAt: DateTime.now(),
-          ),
-        );
-        _localRefresh.add(null);
-        return;
-      }
-      rethrow;
+    if (uid.isEmpty || noteId.isEmpty) {
+      throw StateError('Sign in to delete this note.');
     }
+    return _runSerialized(uid, () async {
+      NoteModel? snapshot = await _offlineStore.findSnapshot(uid, noteId);
+      snapshot ??= await _fetchSnapshot(uid, noteId);
+      final now = DateTime.now();
+      final op = PendingNoteOperation(
+        opId: _randomId(16),
+        kind: PendingNoteOpKind.softDelete,
+        noteId: noteId,
+        queuedAt: now,
+        local: snapshot,
+      );
+      await _offlineStore.enqueue(uid, op);
+
+      final active = await _offlineStore.loadCachedNotes(uid);
+      await _offlineStore.saveCachedNotes(
+        uid,
+        active.where((n) => n.noteId != noteId).toList(),
+      );
+      if (snapshot != null) {
+        final trash = await _offlineStore.loadCachedTrash(uid);
+        final stamped = snapshot.deletedAt == null
+            ? snapshot.copyWith(deletedAt: now)
+            : snapshot;
+        final nextTrash = [
+          for (final n in trash)
+            if (n.noteId != noteId) n,
+          stamped,
+        ]..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+        await _offlineStore.saveCachedTrash(uid, nextTrash);
+      }
+      _localRefresh.add(null);
+      try {
+        await _flushCoveringOp(uid, op.opId);
+      } catch (_) {
+        _localRefresh.add(null);
+        rethrow;
+      }
+      _localRefresh.add(null);
+    });
   }
 
   Future<void> restoreNote(String noteId) async {
     final uid = _maybeClient?.auth.currentUser?.id ?? '';
-    try {
-      await _client.from('notes').update({
-        'deleted_at': null,
-      }).eq('note_id', noteId);
-      _localRefresh.add(null);
-    } catch (err) {
-      if (_isTransientOfflineError(err) && uid.isNotEmpty) {
-        final cached = await _offlineStore.loadCachedNotes(uid);
-        final localMatch = cached.where((n) => n.noteId == noteId).firstOrNull;
-        await _offlineStore.enqueue(
-          uid,
-          PendingNoteOperation(
-            opId: _randomId(16),
-            kind: PendingNoteOpKind.restore,
-            noteId: noteId,
-            queuedAt: DateTime.now(),
-            local: localMatch,
-          ),
-        );
-        _localRefresh.add(null);
-        return;
+    if (uid.isEmpty || noteId.isEmpty) {
+      throw StateError('Sign in to restore this note.');
+    }
+    return _runSerialized(uid, () async {
+      NoteModel? snapshot = await _offlineStore.findSnapshot(uid, noteId);
+      snapshot ??= await _fetchSnapshot(uid, noteId);
+      final now = DateTime.now();
+      final op = PendingNoteOperation(
+        opId: _randomId(16),
+        kind: PendingNoteOpKind.restore,
+        noteId: noteId,
+        queuedAt: now,
+        local: snapshot,
+      );
+      await _offlineStore.enqueue(uid, op);
+
+      final trash = await _offlineStore.loadCachedTrash(uid);
+      await _offlineStore.saveCachedTrash(
+        uid,
+        trash.where((n) => n.noteId != noteId).toList(),
+      );
+      if (snapshot != null) {
+        final active = await _offlineStore.loadCachedNotes(uid);
+        final restored =
+            snapshot.copyWith(clearDeletedAt: true, updatedAt: now);
+        final nextActive = [
+          for (final n in active)
+            if (n.noteId != noteId) n,
+          restored,
+        ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        await _offlineStore.saveCachedNotes(uid, nextActive);
       }
-      rethrow;
+      _localRefresh.add(null);
+      try {
+        await _flushCoveringOp(uid, op.opId);
+      } catch (_) {
+        _localRefresh.add(null);
+        rethrow;
+      }
+      _localRefresh.add(null);
+    });
+  }
+
+  /// Best-effort server snapshot so a restore keeps enough information even
+  /// when the active cache no longer contains the note (owner can read own
+  /// trashed rows). Returns null offline or when unauthorized.
+  Future<NoteModel?> _fetchSnapshot(String uid, String noteId) async {
+    try {
+      final note = await getNoteById(noteId);
+      if (note != null && note.userId == uid) return note;
+      return note;
+    } catch (err) {
+      if (_isTransientOfflineError(err)) return null;
+      return null;
+    }
+  }
+
+  /// Flushes until [opId] is gone (applied) or definitively rejected.
+  /// A flush that ends with the op still queued and no error means the device
+  /// is offline (transient break) or the call joined an in-flight replay that
+  /// started before the op was enqueued; retry covers the latter, and the
+  /// bounded loop keeps offline queueing prompt instead of hanging.
+  Future<void> _flushCoveringOp(String uid, String opId) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await flushOfflineOutbox(uid);
+      final remaining = await _offlineStore.loadOutbox(uid);
+      if (!remaining.any((op) => op.opId == opId)) return;
+      if (attempt == 2) return;
     }
   }
 
@@ -664,8 +800,32 @@ class NoteRepository {
     RealtimeChannel? channel;
     StreamSubscription<void>? localSub;
 
+    Future<void> emitCachedIfAvailable() async {
+      final cached = await _offlineStore.loadCachedTrash(userId);
+      final outbox = await _offlineStore.loadOutbox(userId);
+      if (client.auth.currentUser?.id == userId &&
+          (cached.isNotEmpty || outbox.isNotEmpty) &&
+          !controller.isClosed) {
+        controller.add(_offlineStore.applyTrashOverlay(cached, outbox));
+      }
+    }
+
     Future<void> refresh() async {
       try {
+        if (client.auth.currentUser?.id != userId) {
+          if (!controller.isClosed) controller.add(const []);
+          return;
+        }
+        await emitCachedIfAvailable();
+        try {
+          await flushOfflineOutbox(userId);
+        } catch (_) {
+          // Trash still refreshes from the server; rejected ops stay queued.
+        }
+        if (client.auth.currentUser?.id != userId) {
+          if (!controller.isClosed) controller.add(const []);
+          return;
+        }
         final rows = await fetchAllPages((start, end) => client
             .from('notes')
             .select()
@@ -680,10 +840,18 @@ class NoteRepository {
             .toList()
           ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
 
-        if (!controller.isClosed) {
-          controller.add(list);
+        await _offlineStore.saveCachedTrash(userId, list);
+        final outbox = await _offlineStore.loadOutbox(userId);
+        final overlaid = _offlineStore.applyTrashOverlay(list, outbox);
+
+        if (!controller.isClosed && client.auth.currentUser?.id == userId) {
+          controller.add(overlaid);
         }
       } catch (err) {
+        if (_isTransientOfflineError(err)) {
+          await emitCachedIfAvailable();
+          return;
+        }
         if (!controller.isClosed) {
           controller.addError(err);
         }

@@ -95,6 +95,7 @@ class OfflineNoteStore {
   String _notesKey(String uid) => 'noted.cache.notes.$uid';
   String _pendingSharesKey(String uid) => 'noted.cache.pending.$uid';
   String _outboxKey(String uid) => 'noted.outbox.notes.$uid';
+  String _trashKey(String uid) => 'noted.cache.trash.$uid';
 
   Future<List<NoteModel>> loadCachedNotes(String uid) async {
     if (uid.isEmpty) return const [];
@@ -143,6 +144,31 @@ class OfflineNoteStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _pendingSharesKey(uid),
+      jsonEncode(notes.map((n) => n.toMap()).toList()),
+    );
+  }
+
+  Future<List<NoteModel>> loadCachedTrash(String uid) async {
+    if (uid.isEmpty) return const [];
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_trashKey(uid));
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .whereType<Map>()
+          .map((e) => NoteModel.fromMap(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveCachedTrash(String uid, List<NoteModel> notes) async {
+    if (uid.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _trashKey(uid),
       jsonEncode(notes.map((n) => n.toMap()).toList()),
     );
   }
@@ -292,6 +318,62 @@ class OfflineNoteStore {
     return result;
   }
 
+  /// Overlays queued delete/restore intents onto cached trash rows.
+  /// A queued softDelete with a snapshot appears in trash; a queued restore
+  /// removes the note from trash. Ops without a snapshot cannot invent rows.
+  List<NoteModel> applyTrashOverlay(
+    List<NoteModel> trash,
+    List<PendingNoteOperation> outbox,
+  ) {
+    if (outbox.isEmpty) return trash;
+    final byId = <String, NoteModel>{
+      for (final n in trash) n.noteId: n,
+    };
+    for (final op in outbox) {
+      switch (op.kind) {
+        case PendingNoteOpKind.softDelete:
+          if (op.local != null && op.noteId.isNotEmpty) {
+            final stamped = op.local!.deletedAt == null
+                ? op.local!.copyWith(deletedAt: op.queuedAt)
+                : op.local!;
+            byId[op.noteId] = stamped;
+          }
+        case PendingNoteOpKind.restore:
+          byId.remove(op.noteId);
+        case PendingNoteOpKind.create:
+        case PendingNoteOpKind.saveCollaborative:
+        case PendingNoteOpKind.toggleFavorite:
+          break;
+      }
+    }
+    final result = byId.values.where((n) => n.deletedAt != null).toList()
+      ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+    return result;
+  }
+
+  /// Finds the most recent durable snapshot for [noteId] across active cache,
+  /// trash cache and queued operation payloads (newest op first).
+  Future<NoteModel?> findSnapshot(
+    String uid,
+    String noteId,
+  ) async {
+    if (uid.isEmpty || noteId.isEmpty) return null;
+    final outbox = await loadOutbox(uid);
+    for (var i = outbox.length - 1; i >= 0; i--) {
+      final local = outbox[i].local;
+      if (outbox[i].noteId == noteId && local != null) return local;
+    }
+    final active = await loadCachedNotes(uid);
+    for (final n in active) {
+      if (n.noteId == noteId) return n;
+    }
+    final trash = await loadCachedTrash(uid);
+    for (final n in trash) {
+      if (n.noteId == noteId) return n;
+    }
+    return null;
+  }
+
   Future<void> clearUser(String uid) => _mutate(uid, () => _clearUser(uid));
 
   Future<void> _clearUser(String uid) async {
@@ -300,5 +382,6 @@ class OfflineNoteStore {
     await prefs.remove(_notesKey(uid));
     await prefs.remove(_pendingSharesKey(uid));
     await prefs.remove(_outboxKey(uid));
+    await prefs.remove(_trashKey(uid));
   }
 }
