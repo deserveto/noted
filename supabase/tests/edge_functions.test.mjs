@@ -269,6 +269,99 @@ test('note-sharing copies private media independently and rolls back copied blob
   assert.equal(notes.get('n_src').pending_shared_with_user_ids.length, 0);
 });
 
+test('note-sharing copies inline-only private images once and rewrites content', async () => {
+  const sourceOne = `users/${ALICE.uid}/notes/n_inline/1_diagram.png`;
+  const sourceTwo = `users/${ALICE.uid}/notes/n_inline/2_photo.jpg`;
+  const storageObjects = new Set([sourceOne, sourceTwo]);
+  let copyCalls = 0;
+  const storage = {
+    from() {
+      return {
+        async copy(fromPath, toPath) {
+          copyCalls++;
+          if (!storageObjects.has(fromPath)) return { error: { message: 'missing' } };
+          storageObjects.add(toPath);
+          return { error: null };
+        },
+        async remove(paths) {
+          for (const path of paths) storageObjects.delete(path);
+          return { error: null };
+        },
+      };
+    },
+  };
+
+  const notes = new Map([
+    [
+      'n_inline',
+      {
+        note_id: 'n_inline',
+        user_id: ALICE.uid,
+        owner_name: 'Alice',
+        owner_email: ALICE.email,
+        title: 'Inline media',
+        content: JSON.stringify({
+          notedDocument: 1,
+          ops: [
+            { insert: { image: `noted-media://note-media/${sourceOne}` } },
+            { insert: 'Between paragraphs\n' },
+            { insert: { image: `noted-media://note-media/${sourceTwo}` } },
+            { insert: 'Tail\n' },
+            { insert: { image: `noted-media://note-media/${sourceOne}` } },
+            { insert: '\n' },
+          ],
+        }),
+        category: 'Work',
+        color: 'blue',
+        is_favorite: false,
+        live_member_ids: [],
+        live_roles: {},
+        shared_with_user_ids: [],
+        pending_shared_with_user_ids: [],
+        source_owner_id: null,
+        source_note_id: null,
+        attachments: [],
+        revision: 1,
+        last_edited_by: ALICE.uid,
+        deleted_at: null,
+        created_at: '2026-11-04T00:00:00Z',
+        updated_at: '2026-11-04T00:00:00Z',
+      },
+    ],
+  ]);
+
+  let duplicated = null;
+  const store = {
+    async checkRateLimit() { return true; },
+    async getNote(id) { return notes.get(id) ?? null; },
+    async reserveCopyCleanup() {},
+    async completeCopyCleanup() {},
+    async duplicateNote(_id, _uid, _revision, row) {
+      duplicated = row;
+      notes.set(row.note_id, row);
+    },
+    async getProfile(uid) {
+      return { id: uid, email: ALICE.email, name: 'Alice' };
+    },
+    async insertNotification() { return 'n1'; },
+  };
+
+  const response = await handleNoteSharingRequest(
+    postReq({ action: 'duplicateNote', noteId: 'n_inline' }),
+    { verifyToken, store, storage, env: {} },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(copyCalls, 2); // Duplicate reference copied once.
+  assert.equal(storageObjects.size, 4);
+  assert.equal(duplicated.attachments.length, 0);
+  assert.ok(duplicated.content.includes(`users/${ALICE.uid}/notes/${duplicated.note_id}/`));
+  assert.ok(!duplicated.content.includes('notes/n_inline/'));
+  const copiedRefs = [...duplicated.content.matchAll(/noted-media:\/\/note-media\/([^"\\]+)/g)]
+    .map((match) => match[1]);
+  assert.equal(copiedRefs.length, 3);
+  assert.equal(new Set(copiedRefs).size, 2);
+});
+
 test('connections enforces not-found, privacy (`nobody` vs `mutual`), and Resend invitation idempotency', async () => {
   let targetPrivacy = 'nobody';
   let alicePeers = new Set();

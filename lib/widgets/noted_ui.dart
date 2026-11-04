@@ -303,15 +303,45 @@ Future<T?> notedSheet<T>(BuildContext context,
                         child: builder(context))
                     : builder(context))));
 
-void notedToast(BuildContext context, String text, {VoidCallback? undo}) {
+void notedSnackBar(BuildContext context, SnackBar snackBar) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(
+  messenger.showSnackBar(snackBar);
+}
+
+/// Shows an Undo snackbar that still times out with accessible navigation.
+///
+/// Flutter defaults [SnackBar.persist] to true when an action is present, so
+/// TalkBack/VoiceOver users can leave an Undo bar covering the editor forever.
+/// Explicitly disabling persistence keeps the finite duration for everyone.
+void notedUndoSnackBar(
+  BuildContext context,
+  String text, {
+  required VoidCallback onUndo,
+}) {
+  notedSnackBar(
+    context,
+    SnackBar(
       content: Text(text),
-      duration: Duration(milliseconds: undo == null ? 2400 : 4500),
-      action: undo == null
-          ? null
-          : SnackBarAction(label: 'Undo', onPressed: undo)));
+      duration: const Duration(milliseconds: 4500),
+      persist: false,
+      action: SnackBarAction(label: 'Undo', onPressed: onUndo),
+    ),
+  );
+}
+
+void notedToast(BuildContext context, String text, {VoidCallback? undo}) {
+  if (undo != null) {
+    notedUndoSnackBar(context, text, onUndo: undo);
+    return;
+  }
+  notedSnackBar(
+    context,
+    SnackBar(
+      content: Text(text),
+      duration: const Duration(milliseconds: 2400),
+    ),
+  );
 }
 
 class _SkeletonShapes extends StatelessWidget {

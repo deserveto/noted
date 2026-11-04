@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noted/utils/collaborative_document.dart';
 import 'package:noted/utils/document_codec.dart';
+import 'package:noted/utils/note_image_document.dart';
 
 String rich(List<Map<String, dynamic>> ops) =>
     jsonEncode({'notedDocument': 1, 'ops': ops});
@@ -49,5 +50,30 @@ void main() {
     expect(
         mergeContent(base: '**Hello**', local: '**Hello**', remote: 'Remote'),
         'Remote');
+  });
+  test('inline image survives a concurrent remote text insertion', () {
+    final base = rich([
+      {'insert': 'First paragraph\n'}
+    ]);
+    final local = rich([
+      {
+        'insert': {
+          'image': 'noted-media://note-media/users/u/notes/n/photo.png'
+        }
+      },
+      {'insert': 'First paragraph\n'}
+    ]);
+    final remote = rich([
+      {'insert': 'Remote intro\n'},
+      {'insert': 'First paragraph\n'}
+    ]);
+    final result = mergeContent(base: base, local: local, remote: remote);
+    final document = DocumentCodec.decode(result);
+    final images = NoteImageDocument.images(document);
+    expect(images, hasLength(1));
+    expect(images.single.reference,
+        'noted-media://note-media/users/u/notes/n/photo.png');
+    expect(document.toPlainText().replaceAll('\uFFFC', ''),
+        'Remote intro\nFirst paragraph\n');
   });
 }

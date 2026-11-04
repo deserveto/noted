@@ -389,6 +389,7 @@ export async function handleNoteSharingRequest(
         await deleteNoteMediaObjects({
           storage: deps.storage,
           noteId: newNoteId,
+          ownerUserId: caller.uid,
           attachments: copied.attachments,
         }).catch(() => undefined);
         throw err;
@@ -505,6 +506,7 @@ export async function handleNoteSharingRequest(
         await deleteNoteMediaObjects({
           storage: deps.storage,
           noteId: newNoteId,
+          ownerUserId: caller.uid,
           attachments: copied.attachments,
         }).catch(() => undefined);
         throw err;

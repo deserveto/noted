@@ -13,9 +13,15 @@ import '../services/media_url_resolver.dart';
 import 'reference_icon.dart';
 
 class NoteAttachment extends StatefulWidget {
-  const NoteAttachment({required this.attachment, this.onRemove, super.key});
+  const NoteAttachment({
+    required this.attachment,
+    this.onRemove,
+    this.onMove,
+    super.key,
+  });
   final Map<String, dynamic> attachment;
   final VoidCallback? onRemove;
+  final VoidCallback? onMove;
   @override
   State<NoteAttachment> createState() => _NoteAttachmentState();
 }
@@ -45,8 +51,7 @@ class _NoteAttachmentState extends State<NoteAttachment> {
         loadingBuilder: (_, child, progress) => progress == null
             ? child
             : const Padding(
-                padding: EdgeInsets.all(24),
-                child: LinearProgressIndicator()),
+                padding: EdgeInsets.all(24), child: LinearProgressIndicator()),
         errorBuilder: (context, error, stack) => const Padding(
             padding: EdgeInsets.all(20),
             child: Text(
@@ -143,19 +148,35 @@ class _NoteAttachmentState extends State<NoteAttachment> {
             ]),
           )
         else
-          Stack(children: [
+          Stack(clipBehavior: Clip.none, children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: _buildImageAttachment(rawUrl, rawPath),
             ),
-            if (widget.onRemove != null)
+            if (widget.onMove != null || widget.onRemove != null)
               Positioned(
                   right: 4,
                   top: 4,
-                  child: IconButton.filledTonal(
-                      tooltip: 'Remove attachment',
-                      onPressed: widget.onRemove,
-                      icon: const ReferenceIcon('x', size: 16))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (widget.onMove != null)
+                      IconButton.filledTonal(
+                          tooltip: a['type'] == 'doodle'
+                              ? 'Move drawing into note'
+                              : 'Move image into note',
+                          onPressed: widget.onMove,
+                          style: IconButton.styleFrom(
+                              minimumSize: const Size(44, 44)),
+                          icon: const ReferenceIcon('target', size: 16)),
+                    if (widget.onRemove != null) ...[
+                      const SizedBox(width: 4),
+                      IconButton.filledTonal(
+                          tooltip: 'Remove attachment',
+                          onPressed: widget.onRemove,
+                          style: IconButton.styleFrom(
+                              minimumSize: const Size(44, 44)),
+                          icon: const ReferenceIcon('x', size: 16)),
+                    ],
+                  ])),
           ]),
         if (_error != null)
           Text(_error!,

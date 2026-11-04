@@ -54,6 +54,41 @@ function replaceAllLiterals(text: string, from: string, to: string): string {
  * the private `note-media` bucket, rewriting inline references and rolling back
  * any copied objects if a failure occurs partway through.
  */
+const MAX_COPY_ATTACHMENTS = 100;
+const MAX_COPY_INLINE_MEDIA = 200;
+
+function noteMediaPathFromReference(reference: string): string {
+  const prefix = `noted-media://${NOTE_MEDIA_BUCKET}/`;
+  if (!reference.startsWith(prefix)) return '';
+  return reference.slice(prefix.length).replace(/^\/+/, '');
+}
+
+function inlineMediaPaths(content: string, sourceNoteId: string): string[] {
+  const found = new Set<string>();
+  const pattern = new RegExp(
+    `noted-media://${NOTE_MEDIA_BUCKET}/([^"'\\\\\\s)]+)`,
+    'g',
+  );
+  for (const match of content.matchAll(pattern)) {
+    const path = match[1].replace(/^\/+/, '');
+    if (!isValidNoteAttachmentPath(path, sourceNoteId)) {
+      throw new AppError(
+        'permission-denied',
+        'Inline media does not belong to the source note.',
+      );
+    }
+    found.add(path);
+  }
+  return [...found];
+}
+
+/**
+ * Copies every private attachment and inline image belonging to `sourceNoteId`
+ * into an independent storage prefix `users/<targetUserId>/notes/<targetNoteId>/...`
+ * in the private `note-media` bucket. Both `attachments` metadata and inline
+ * `noted-media://` references inside `content` are rewritten, duplicate paths
+ * are copied once, and copied objects are rolled back on failure.
+ */
 export async function copyAttachmentsForNote(params: {
   storage: StorageAdmin;
   sourceNoteId: string;
@@ -69,36 +104,56 @@ export async function copyAttachmentsForNote(params: {
     targetNoteId,
   } = params;
   let nextContent = String(params.content ?? '');
-  const inputAttachments = Array.isArray(params.attachments)
-    ? params.attachments.slice(0, 100)
-    : [];
+  const inputAttachments = (Array.isArray(params.attachments)
+    ? params.attachments
+    : [])
+    .filter((raw) => raw && typeof raw === 'object')
+    .slice(0, MAX_COPY_ATTACHMENTS);
 
-  if (inputAttachments.length === 0) {
-    return { content: nextContent, attachments: [] };
+  const nameByPath = new Map<string, string>();
+  const orderedPaths: string[] = [];
+  const addPath = (path: string, name?: string) => {
+    if (!path) return;
+    if (!isValidNoteAttachmentPath(path, sourceNoteId)) {
+      throw new AppError(
+        'permission-denied',
+        'Attachment path does not belong to the source note.',
+      );
+    }
+    if (!nameByPath.has(path)) {
+      nameByPath.set(path, name ?? path.split('/').pop() ?? 'file');
+      orderedPaths.push(path);
+    } else if (name) {
+      nameByPath.set(path, name);
+    }
+  };
+
+  for (const raw of inputAttachments) {
+    const explicitPath =
+      typeof raw.path === 'string' ? raw.path.trim().replace(/^\/+/, '') : '';
+    const path = explicitPath ||
+      (typeof raw.url === 'string' ? noteMediaPathFromReference(raw.url) : '');
+    if (path) addPath(path, typeof raw.name === 'string' ? raw.name : undefined);
+  }
+  for (const path of inlineMediaPaths(nextContent, sourceNoteId)) {
+    addPath(path);
+  }
+
+  if (orderedPaths.length === 0) {
+    return { content: nextContent, attachments: inputAttachments.map((raw) => ({ ...raw })) };
+  }
+  if (orderedPaths.length > MAX_COPY_INLINE_MEDIA) {
+    throw new AppError('resource-exhausted', 'This note has too many images to copy.');
   }
 
   const bucket = storage.from(NOTE_MEDIA_BUCKET);
   const copiedPaths: string[] = [];
-  const nextAttachments: AttachmentMeta[] = [];
+  const copiedBySource = new Map<string, { path: string; canonical: string }>();
 
   try {
-    for (const raw of inputAttachments) {
-      if (!raw || typeof raw !== 'object') continue;
-      const oldPath = typeof raw.path === 'string' ? raw.path.trim().replace(/^\/+/, '') : '';
-      if (!oldPath) {
-        nextAttachments.push({ ...raw });
-        continue;
-      }
-
-      if (!isValidNoteAttachmentPath(oldPath, sourceNoteId)) {
-        throw new AppError(
-          'permission-denied',
-          'Attachment path does not belong to the source note.',
-        );
-      }
-
+    for (const oldPath of orderedPaths) {
       const safeName =
-        String(raw.name || oldPath.split('/').pop() || 'file')
+        String(nameByPath.get(oldPath) || oldPath.split('/').pop() || 'file')
           .replace(/[^a-zA-Z0-9._-]/g, '_')
           .slice(0, 80) || 'file';
       const newPath = `users/${targetUserId}/notes/${targetNoteId}/${crypto.randomUUID()}_${safeName}`;
@@ -111,21 +166,26 @@ export async function copyAttachmentsForNote(params: {
         );
       }
       copiedPaths.push(newPath);
-
-      const oldCanonical = canonicalMediaUri(NOTE_MEDIA_BUCKET, oldPath);
-      const newCanonical = canonicalMediaUri(NOTE_MEDIA_BUCKET, newPath);
-
-      if (raw.url) {
-        nextContent = replaceAllLiterals(nextContent, raw.url, newCanonical);
-      }
-      nextContent = replaceAllLiterals(nextContent, oldCanonical, newCanonical);
-
-      nextAttachments.push({
-        ...raw,
+      copiedBySource.set(oldPath, {
         path: newPath,
-        url: newCanonical,
+        canonical: canonicalMediaUri(NOTE_MEDIA_BUCKET, newPath),
       });
     }
+
+    for (const [oldPath, copied] of copiedBySource) {
+      const oldCanonical = canonicalMediaUri(NOTE_MEDIA_BUCKET, oldPath);
+      nextContent = replaceAllLiterals(nextContent, oldCanonical, copied.canonical);
+    }
+
+    const nextAttachments: AttachmentMeta[] = inputAttachments.map((raw) => {
+      const explicitPath =
+        typeof raw.path === 'string' ? raw.path.trim().replace(/^\/+/, '') : '';
+      const oldPath = explicitPath ||
+        (typeof raw.url === 'string' ? noteMediaPathFromReference(raw.url) : '');
+      const copied = oldPath ? copiedBySource.get(oldPath) : undefined;
+      if (!copied) return { ...raw };
+      return { ...raw, path: copied.path, url: copied.canonical };
+    });
 
     return { content: nextContent, attachments: nextAttachments };
   } catch (err) {
@@ -211,6 +271,12 @@ export async function deleteNoteMediaObjects(params: {
 
   const bucket = params.storage.from(NOTE_MEDIA_BUCKET);
   let deleted = 0;
+  const paths = [...pathSet];
+  if (paths.length) {
+    const { error } = await bucket.remove(paths);
+    if (error) throw new AppError('internal', `Storage deletion failed: ${error.message}`);
+    deleted += paths.length;
+  }
   if (params.ownerUserId) {
     if (!params.noteId || params.noteId.includes('/') || params.noteId === '.' || params.noteId === '..') {
       throw new AppError('invalid-argument', 'Invalid note storage prefix.');
@@ -234,12 +300,6 @@ export async function deleteNoteMediaObjects(params: {
         `users/${uploader}/notes/${params.noteId}`,
       );
     }
-  }
-  const paths = [...pathSet];
-  if (paths.length) {
-    const { error } = await bucket.remove(paths);
-    if (error) throw new AppError('internal', `Storage deletion failed: ${error.message}`);
-    deleted += paths.length;
   }
   return deleted;
 }

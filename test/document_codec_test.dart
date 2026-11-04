@@ -49,6 +49,24 @@ void main() {
         contains('type="checkbox" disabled checked'));
     expect(DocumentCodec.toHtml(value), contains('text-align:center'));
   });
+  test('HTML export keeps inline private image references', () {
+    const value =
+        '{"notedDocument":1,"ops":[{"insert":"Before "},{"insert":{"image":"noted-media://note-media/users/u/notes/n/photo.png"}},{"insert":" after\\n"},{"insert":"<unsafe>"},{"insert":"\\n"}]}';
+    final html = DocumentCodec.toHtml(value);
+    expect(html, contains('Before '));
+    expect(
+        html,
+        contains(
+            '<img src="noted-media://note-media/users/u/notes/n/photo.png" alt="Note image">'));
+    expect(html, contains('&lt;unsafe&gt;'));
+    expect(html, isNot(contains('<unsafe>')));
+
+    const unsafeImage =
+        '{"notedDocument":1,"ops":[{"insert":{"image":"https://example.test/\\" onerror=\\"alert(1)"}},{"insert":"\\n"}]}';
+    final unsafeHtml = DocumentCodec.toHtml(unsafeImage);
+    expect(unsafeHtml, isNot(contains('onerror="')));
+    expect(unsafeHtml, contains('&quot;'));
+  });
   test('HTML export escapes note text', () {
     final value = jsonEncode({
       'notedDocument': 1,
