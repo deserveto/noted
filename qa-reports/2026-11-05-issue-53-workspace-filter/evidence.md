@@ -6,6 +6,7 @@ Date: 2026-11-05
 
 - App: Noted 2.0.0 (version code 3), signed release APK.
 - Base commit: `712b85e9a1cb006fd55bca5fbacd3fe9c0bfe780`.
+- Implementation commit: `3219897`.
 - APK: `build/app/outputs/flutter-apk/app-release.apk` (64.5 MB).
 - APK SHA-256: `17A4C00E40A1344AE2EC112202C32DB39CC9EF3F30CE5198474B8E79FBDDE84B`.
 - Device: Android emulator `sdk_gphone64_x86_64`, Android 13 / API 33
