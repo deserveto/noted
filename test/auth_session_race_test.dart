@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noted/models/user_model.dart';
+import 'package:noted/models/workspace_model.dart';
 import 'package:noted/repositories/auth_repository.dart';
+import 'package:noted/services/workspace_cache_store.dart';
 import 'package:noted/viewmodels/auth_viewmodel.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -219,6 +221,22 @@ void main() {
           },
         }));
     await session(alice);
+    await const WorkspaceCacheStore().saveSnapshot(
+      alice,
+      WorkspaceLibrarySnapshot(
+        workspaces: const [PersonalWorkspace(id: 'alice-space', name: 'A')],
+        assignments: const {'alice-note': 'alice-space'},
+        loadedAt: DateTime(2026, 11, 5),
+      ),
+    );
+    await const WorkspaceCacheStore().saveSnapshot(
+      bob,
+      WorkspaceLibrarySnapshot(
+        workspaces: const [PersonalWorkspace(id: 'bob-space', name: 'B')],
+        assignments: const {'bob-note': 'bob-space'},
+        loadedAt: DateTime(2026, 11, 5),
+      ),
+    );
     final repo = DeletingRepository(client);
     final operation = repo.deleteAccount('test-password');
     await deleting.future;
@@ -227,5 +245,7 @@ void main() {
     await operation;
     expect(logouts, 0);
     expect(client.auth.currentUser?.id, bob);
+    expect(await const WorkspaceCacheStore().loadSnapshot(alice), isNull);
+    expect(await const WorkspaceCacheStore().loadSnapshot(bob), isNotNull);
   });
 }

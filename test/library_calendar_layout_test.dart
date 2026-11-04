@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:noted/models/note_model.dart';
 import 'package:noted/models/settings_model.dart';
+import 'package:noted/models/workspace_model.dart';
 import 'package:noted/repositories/settings_repository.dart';
 import 'package:noted/viewmodels/settings_viewmodel.dart';
 import 'package:noted/viewmodels/note_viewmodel.dart';
@@ -16,6 +17,7 @@ class LayoutNotes extends ChangeNotifier implements NoteViewModel {
   int revision = 0;
   LibraryFilter filter = LibraryFilter.all;
   NoteSort sorting = NoteSort.lastEdited;
+  WorkspaceSelection workspace = WorkspaceSelection.all;
   @override
   final notes = [
     NoteModel.empty('fixture').copyWith(
@@ -62,9 +64,30 @@ class LayoutNotes extends ChangeNotifier implements NoteViewModel {
   @override
   int get totalLive => 0;
   @override
+  int get visibleAllCount => notes.length;
+  @override
+  int get visibleFavoriteCount => 1;
+  @override
+  int get visibleLiveCount => 0;
+  @override
+  int get workspaceScopedCount => notes.length;
+  @override
   LibraryFilter get libraryFilter => filter;
   @override
   NoteSort get sort => sorting;
+  @override
+  List<PersonalWorkspace> get workspaces => const [];
+  @override
+  WorkspaceLibraryStatus get workspaceStatus => WorkspaceLibraryStatus.ready;
+  @override
+  String? get workspaceErrorMessage => null;
+  @override
+  bool get workspaceAssignmentsKnown => true;
+  @override
+  WorkspaceSelection get workspaceSelection => workspace;
+  @override
+  String get workspaceSelectionLabel =>
+      workspace.isDefault ? 'Default' : 'All workspaces';
   @override
   String get selectedCategory => category;
   @override
@@ -99,6 +122,21 @@ class LayoutNotes extends ChangeNotifier implements NoteViewModel {
     sorting = s;
     notifyListeners();
   }
+
+  @override
+  void updateWorkspaceSelection(WorkspaceSelection selection) {
+    workspace = selection;
+    notifyListeners();
+  }
+
+  @override
+  void resetWorkspaceSelection() {
+    workspace = WorkspaceSelection.all;
+    notifyListeners();
+  }
+
+  @override
+  void retryWorkspaces() {}
 
   @override
   Future<void> toggleFavorite(NoteModel n) async {}

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
+import '../repositories/workspace_repository.dart';
 import '../services/attachment_service.dart';
 import '../services/collaboration_service.dart';
 import '../services/media_url_resolver.dart';
