@@ -25,8 +25,11 @@ class ConnectionRepository {
 
     late final StreamController<List<ConnectionModel>> controller;
     RealtimeChannel? channel;
+    var listening = false;
+    var refreshRevision = 0;
 
     Future<void> refresh() async {
+      final revision = ++refreshRevision;
       try {
         final rows = await fetchAllPages((start, end) => client
             .from('connection_requests')
@@ -40,11 +43,11 @@ class ConnectionRepository {
             .toList()
           ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
-        if (!controller.isClosed) {
+        if (listening && revision == refreshRevision) {
           controller.add(values);
         }
       } catch (err) {
-        if (!controller.isClosed) {
+        if (listening && revision == refreshRevision) {
           controller.addError(err);
         }
       }
@@ -52,7 +55,7 @@ class ConnectionRepository {
 
     controller = StreamController<List<ConnectionModel>>(
       onListen: () {
-        refresh();
+        listening = true;
         channel = client
             .channel('connections-$userId-${identityHashCode(controller)}')
             .onPostgresChanges(
@@ -61,11 +64,23 @@ class ConnectionRepository {
               table: 'connection_requests',
               callback: (_) => refresh(),
             )
-            .subscribe();
+            .subscribe((status, error) {
+          if (!listening) return;
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            refresh();
+          } else if (status == RealtimeSubscribeStatus.channelError) {
+            controller.addError(
+              error ?? StateError('Connection updates are unavailable.'),
+            );
+          }
+        });
       },
       onCancel: () async {
+        listening = false;
+        refreshRevision++;
         if (channel != null) {
           await client.removeChannel(channel!);
+          channel = null;
         }
       },
     );

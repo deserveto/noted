@@ -100,7 +100,7 @@ class _MainShellState extends State<MainShell>
                             key: ValueKey(_aiGeneration),
                             initialScope: _aiScope,
                             initialPrompt: _aiPrompt),
-                        const ConnectionsPage(),
+                        ConnectionsPage(active: _index == 3),
                         ProfilePage(
                             onNavigate: _library,
                             onConnections: () => _navigate(3))
