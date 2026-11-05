@@ -41,4 +41,4 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Check Edge Function entry points
-        run: npx --yes deno@2.9.6 check ../../supabase/functions/account/index.ts ../../supabase/functions/connections/index.ts ../../supabase/functions/note-sharing/index.ts ../../supabase/functions/noted-ai/index.ts ../../supabase/functions/scheduled-maintenance/index.ts
+        run: npx --yes deno@2.9.6 check --config ../../supabase/functions/deno.json ../../supabase/functions/account/index.ts ../../supabase/functions/connections/index.ts ../../supabase/functions/note-sharing/index.ts ../../supabase/functions/noted-ai/index.ts ../../supabase/functions/scheduled-maintenance/index.ts ../../supabase/functions/app-updates/index.ts

@@ -6,9 +6,14 @@ import 'account_services.dart';
 
 /// Lives above Navigator, preserving all routes and drafts behind an opaque gate.
 class AppLockGate extends StatefulWidget {
-  const AppLockGate({super.key, required this.child, this.authenticate});
+  const AppLockGate(
+      {super.key,
+      required this.child,
+      this.authenticate,
+      this.onObscuredChanged});
   final Widget child;
   final Future<bool> Function()? authenticate;
+  final ValueChanged<bool>? onObscuredChanged;
   @override
   State<AppLockGate> createState() => _AppLockGateState();
 }
@@ -16,6 +21,7 @@ class AppLockGate extends StatefulWidget {
 class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   bool _locked = true, _authenticating = false, _wasEnabled = false;
   String? _error;
+  bool? _reportedObscured;
   @override
   void initState() {
     super.initState();
@@ -71,6 +77,10 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     }
     _wasEnabled = enabled;
     final obscured = loading || (enabled && _locked);
+    if (_reportedObscured != obscured) {
+      _reportedObscured = obscured;
+      widget.onObscuredChanged?.call(obscured);
+    }
     return Stack(fit: StackFit.expand, children: [
       Offstage(
           offstage: obscured,

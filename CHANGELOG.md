@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1 beta — build 4 — 2026-11-05
+
+- Added open-enrollment Android beta updates for every signed-in Noted account, with changelogs and release history in Settings.
+- Added private APK storage, authenticated short-lived download links and a verified publication process.
+- Added safe-screen reminders and installed-build-based “What’s new”; Android installation remains user-controlled.
+- Included the current main-branch workspace filtering, shared-note previews, inline image placement, connection refresh and delete/undo corrections.
+
+Existing testers must manually install this first updater-enabled build using the same signing identity as version 2.0.0. See [the beta release runbook](docs/beta-releases.md). Physical-device replacement installation and persistence acceptance remain separate checks.
+
 ## [2.0.0](https://github.com/deserveto/noted/releases/tag/v2.0.0) — 2026-11-01
 
 A complete interface rebuild and backend transition for Noted, merged in [PR #50](https://github.com/deserveto/noted/pull/50).

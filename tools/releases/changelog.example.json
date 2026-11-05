@@ -1,0 +1,4 @@
+[
+  { "type": "added", "text": "Check for beta updates and read release notes in Settings." },
+  { "type": "fixed", "text": "Describe a concrete issue fixed by this release." }
+]

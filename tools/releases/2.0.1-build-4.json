@@ -1,0 +1,6 @@
+[
+  {"type":"added","text":"Check for beta updates and read release history from Settings. Every signed-in Noted account can join the beta."},
+  {"type":"added","text":"Receive quiet update reminders and open signed Android updates in your browser. Finish installation using Android's installer."},
+  {"type":"changed","text":"Update prompts wait until notes, recording, App Lock and sensitive screens are closed. Your saved notes and pending offline edits stay in place."},
+  {"type":"fixed","text":"Improved workspace filtering, shared-note previews, image placement, connection refresh and delete/undo ordering."}
+]
