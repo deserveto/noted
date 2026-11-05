@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/connection_model.dart';
@@ -13,17 +15,59 @@ import '../widgets/reference_icon.dart';
 import '../widgets/empty_state.dart';
 
 class ConnectionsPage extends StatefulWidget {
-  const ConnectionsPage({super.key});
+  const ConnectionsPage({super.key, this.active = true});
+
+  final bool active;
+
   @override
   State<ConnectionsPage> createState() => _ConnectionsPageState();
 }
 
-class _ConnectionsPageState extends State<ConnectionsPage> {
+class _ConnectionsPageState extends State<ConnectionsPage>
+    with WidgetsBindingObserver {
   final _email = TextEditingController();
   bool _sending = false;
   String? _error;
+  bool _wasActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshWhenActivated();
+  }
+
+  @override
+  void didUpdateWidget(covariant ConnectionsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshWhenActivated();
+  }
+
+  void _refreshWhenActivated() {
+    if (!widget.active) {
+      _wasActive = false;
+      return;
+    }
+    if (_wasActive) return;
+    _wasActive = true;
+    unawaited(context.read<ConnectionViewModel>().refresh());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.active) {
+      unawaited(context.read<ConnectionViewModel>().refresh());
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _email.dispose();
     super.dispose();
   }
@@ -141,7 +185,7 @@ class _ConnectionsPageState extends State<ConnectionsPage> {
               ],
               if (vm.errorMessage != null) ...[
                 const SizedBox(height: 12),
-                InlineError(vm.errorMessage!)
+                InlineError(vm.errorMessage!, onRetry: () => vm.refresh())
               ],
               if (notes.isNotEmpty) ...[
                 const SectionHeader('Live notes'),

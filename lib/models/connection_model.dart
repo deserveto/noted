@@ -78,6 +78,24 @@ class ConnectionModel {
     return fromUserId == userId && status == ConnectionStatus.pending;
   }
 
+  ConnectionModel copyWith({
+    ConnectionStatus? status,
+    DateTime? updatedAt,
+  }) {
+    return ConnectionModel(
+      connectionId: connectionId,
+      fromUserId: fromUserId,
+      fromName: fromName,
+      fromEmail: fromEmail,
+      toUserId: toUserId,
+      toName: toName,
+      toEmail: toEmail,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   String otherUserId(String currentUserId) {
     return fromUserId == currentUserId ? toUserId : fromUserId;
   }
