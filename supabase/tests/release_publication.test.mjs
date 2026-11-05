@@ -14,6 +14,29 @@ const artifact = {
 };
 const changelog = [{ type: 'fixed', text: 'Preserve offline notes when reconnecting.' }];
 
+test('inspection rejects an oversized APK before invoking SDK verification', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'noted-release-budget-test-'));
+  const apk = path.join(directory, 'oversized.apk');
+  let sdkCalls = 0;
+  try {
+    await fs.writeFile(apk, bytes);
+    await assert.rejects(inspectApk({ apk, buildTools: directory, maxBytes: bytes.length - 1 }, () => {
+      sdkCalls++;
+      throw Error('SDK must not run');
+    }), /size budget/);
+    assert.equal(sdkCalls, 0);
+  } finally {
+    await fs.unlink(apk);
+    await fs.rmdir(directory);
+  }
+});
+
+test('inspection rejects invalid byte budgets before reading the APK', async () => {
+  for (const maxBytes of [0, -1, 1.5, NaN, Infinity, 536870913, '52428800', null]) {
+    await assert.rejects(inspectApk({ apk: 'missing.apk', buildTools: 'unused', maxBytes }), /maxBytes/);
+  }
+});
+
 test('inspection verifies a fixed snapshot and uploads its bytes even if a build replaces the input', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'noted-release-test-'));
   const apk = path.join(directory, 'mutable.apk');

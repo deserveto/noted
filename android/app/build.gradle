@@ -29,6 +29,14 @@ android {
         jvmTarget = "17"
     }
 
+    // Direct universal APKs must fit the beta project's Storage upload limit.
+    // Android's installer extracts these compressed libraries normally.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     defaultConfig {
         applicationId = "com.noted.app"
         minSdkVersion = flutter.minSdkVersion
