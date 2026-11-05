@@ -46,10 +46,14 @@ function run(executable, args) {
   return result.stdout;
 }
 
-export async function inspectApk({ apk, version, build, buildTools, certificate }, runTool = run) {
+export async function inspectApk({ apk, version, build, buildTools, certificate, maxBytes = 50 * 1024 * 1024 }, runTool = run) {
   if (!apk || !buildTools) throw Error('Provide --apk and --build-tools paths.');
-  const bytes = await fs.readFile(path.resolve(apk));
-  if (!bytes.length || bytes.length > 536870912) throw Error('APK must be between 1 byte and 512 MiB.');
+  if (!Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 536870912) throw Error('maxBytes must be an integer from 1 through 536870912.');
+  const apkPath = path.resolve(apk);
+  const info = await fs.stat(apkPath);
+  if (!info.isFile() || info.size < 1 || info.size > maxBytes) throw Error('APK exceeds the configured size budget or is not a nonempty file.');
+  const bytes = await fs.readFile(apkPath);
+  if (bytes.length !== info.size || !bytes.length || bytes.length > maxBytes) throw Error('APK changed size while reading or exceeds the configured size budget.');
   // A concurrent Flutter build can replace its output path. Both SDK checks must
   // inspect a private snapshot of the exact buffer that publication will upload.
   const directory = await fs.mkdtemp(path.join(path.resolve(os.tmpdir()), 'noted-release-'));
@@ -141,7 +145,7 @@ async function main() {
   const { command, values } = parseArgs(process.argv.slice(2));
   let artifact;
   if (command !== 'withdraw') {
-    artifact = await inspectApk({ apk: values.apk, version: values.version, build: Number(values.build), buildTools: values['build-tools'], certificate: process.env.NOTED_SIGNING_CERT_SHA256 });
+    artifact = await inspectApk({ apk: values.apk, version: values.version, build: Number(values.build), buildTools: values['build-tools'], certificate: process.env.NOTED_SIGNING_CERT_SHA256, maxBytes: Number(process.env.NOTED_MAX_APK_BYTES ?? 52428800) });
     const { bytes: _, ...summary } = artifact;
     console.log(JSON.stringify(summary, null, 2));
     if (command === 'verify') return;

@@ -92,6 +92,7 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NOTED_SIGNING_CERT_SHA256: ${{ vars.NOTED_SIGNING_CERT_SHA256 }}
+          NOTED_MAX_APK_BYTES: ${{ vars.NOTED_MAX_APK_BYTES || '52428800' }}
         run: |
           $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
           $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
