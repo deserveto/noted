@@ -1,0 +1,4 @@
+interface:
+  display_name: "Noted Beta Release"
+  short_description: "Prepare and ship verified Noted Android beta updates"
+  default_prompt: "Use $noted-beta-release to prepare or publish the Noted beta according to my request."
