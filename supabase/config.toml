@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions.scheduled-maintenance]
 verify_jwt = false
+
+[functions.app-updates]
+verify_jwt = false

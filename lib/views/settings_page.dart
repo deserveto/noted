@@ -11,6 +11,9 @@ import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
 import '../utils/pluralize.dart';
+import '../viewmodels/update_viewmodel.dart';
+import '../services/update_service.dart';
+import 'updates_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -27,7 +30,8 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     PackageInfo.fromPlatform().then((info) {
       if (mounted) {
-        setState(() => _version = '${info.version} (${info.buildNumber})');
+        setState(() => _version =
+            '${info.version} (${info.buildNumber})${UpdateService.channel.isEmpty ? '' : ' · ${UpdateService.channel}'}');
       }
     }).catchError((Object _) {
       if (mounted) setState(() => _version = 'Unavailable');
@@ -735,7 +739,28 @@ class _SettingsPageState extends State<SettingsPage> {
                             }
                           }))
                 ),
-                ('Version', _row('Version', null, value: _version))
+                ('Version', _row('Version', null, value: _version)),
+                if (context.watch<UpdateViewModel?>() case final updates?) ...[
+                  (
+                    'Check for updates',
+                    _row(
+                        'Check for updates',
+                        () => Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                                builder: (_) => UpdatesPage(vm: updates))))
+                  ),
+                  (
+                    'Release history',
+                    _row(
+                        'Release history',
+                        () => Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    UpdatesPage(vm: updates, history: true))))
+                  ),
+                ],
               ]),
               if (_query.isNotEmpty && _matchingRows == 0)
                 Padding(

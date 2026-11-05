@@ -3,7 +3,8 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'services/analytics_service.dart';
-import 'services/app_lock_gate.dart';
+import 'services/update_coordinator.dart';
+import 'viewmodels/update_viewmodel.dart';
 import 'repositories/note_repository.dart';
 import 'repositories/workspace_repository.dart';
 import 'utils/app_routes.dart';
@@ -50,6 +51,7 @@ class _NotedAppState extends State<NotedApp> with WidgetsBindingObserver {
   String? _authUid;
   bool _recoveryOpen = false;
   final _navigator = GlobalKey<NavigatorState>();
+  final _updateNavigation = UpdateNavigationObserver();
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
@@ -84,6 +86,7 @@ class _NotedAppState extends State<NotedApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'Noted',
       navigatorKey: _navigator,
+      navigatorObservers: [_updateNavigation],
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
@@ -105,7 +108,13 @@ class _NotedAppState extends State<NotedApp> with WidgetsBindingObserver {
             child: ScrollConfiguration(
                 behavior:
                     const MaterialScrollBehavior().copyWith(scrollbars: false),
-                child: AppLockGate(child: child!)));
+                child: UpdateCoordinator(
+                    vm: context.watch<UpdateViewModel?>(),
+                    uid: uid,
+                    recovering: auth.isPasswordRecovery || _recoveryOpen,
+                    navigation: _updateNavigation,
+                    navigatorKey: _navigator,
+                    child: child!)));
       },
       onGenerateRoute: (settings) {
         final id = noteIdFromLink(settings.name ?? '');

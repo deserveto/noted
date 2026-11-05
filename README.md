@@ -200,6 +200,8 @@ Golden fixtures cover light and dark layouts at 360, 390, and 430 px. Backend te
 
 ## Release readiness
 
+The open-enrollment Android beta updater is available in version `2.0.1` (build `4`). The first updater-enabled APK is a public bootstrap prerelease; install it, then create a Noted account or sign in. Later in-app downloads are authorized for every signed-in account and use short-lived links to private storage. See the [beta release runbook](docs/beta-releases.md) and [release verification record](docs/releases/2026-11-05-beta-2.0.1-build-4.md). Android requires users to finish installation; do not uninstall as a routine update step.
+
 The November 1, 2026 release notes record the following outstanding checks. Use the [setup and cutover guide](docs/SUPABASE_SETUP_AND_CUTOVER.md) when preparing a public rollout.
 
 | Area | Remaining checks |

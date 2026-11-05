@@ -1,0 +1,105 @@
+name: Publish Android beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name, for example 2.0.1'
+        required: true
+        type: string
+      build:
+        description: 'Unique build number above every reserved beta build'
+        required: true
+        type: string
+      changelog:
+        description: 'Reviewed changelog JSON file committed in tools/releases/'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noted-android-beta-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    # Configure required reviewers and main-only deployment protection before use.
+    environment: beta-release
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_BUILD: ${{ inputs.build }}
+      RELEASE_CHANGELOG: ${{ inputs.changelog }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/migration/package-lock.json
+      - name: Validate dispatch inputs
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$' -or $env:RELEASE_VERSION.Length -gt 40 -or $env:RELEASE_BUILD -notmatch '^[1-9]\d*$') { throw 'Invalid release identity.' }
+          if ([long]$env:RELEASE_BUILD -gt 2100000000) { throw 'Build exceeds Android limit.' }
+          if ($env:RELEASE_CHANGELOG -notmatch '^tools/releases/[a-zA-Z0-9_.-]+\.json$') { throw 'Use a committed changelog in tools/releases/.' }
+          if (-not (Test-Path -LiteralPath $env:RELEASE_CHANGELOG -PathType Leaf)) { throw 'Changelog is missing.' }
+      - run: npm ci --prefix tools/migration
+      - run: npm test --prefix tools/migration
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - name: Configure protected release signing and public client configuration
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          PUBLIC_SUPABASE_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          foreach ($name in @('KEYSTORE_BASE64','STORE_PASSWORD','KEY_PASSWORD','KEY_ALIAS','PUBLIC_SUPABASE_URL','PUBLIC_SUPABASE_KEY')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw 'Required release configuration is missing.' }
+          }
+          $keystorePath = Join-Path $env:RUNNER_TEMP 'noted-beta-release.jks'
+          [IO.File]::WriteAllBytes($keystorePath, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+          function Escape-Property([string]$value) {
+            $escaped = $value.Replace('\','\\').Replace("`r",'\r').Replace("`n",'\n').Replace(' ','\ ').Replace('=','\=').Replace(':','\:').Replace('#','\#').Replace('!','\!')
+            return [regex]::Replace($escaped, '[^\x00-\x7F]', { param($match) '\u{0:x4}' -f [int][char]$match.Value })
+          }
+          $properties = @(
+            ('storeFile=' + (Escape-Property $keystorePath))
+            ('storePassword=' + (Escape-Property $env:STORE_PASSWORD))
+            ('keyPassword=' + (Escape-Property $env:KEY_PASSWORD))
+            ('keyAlias=' + (Escape-Property $env:KEY_ALIAS))
+          )
+          [IO.File]::WriteAllLines((Join-Path $pwd 'android/key.properties'), $properties)
+          @{ SUPABASE_URL=$env:PUBLIC_SUPABASE_URL; SUPABASE_ANON_KEY=$env:PUBLIC_SUPABASE_KEY; NOTED_AUTH_REDIRECT_URL='noted://app/auth-callback' } | ConvertTo-Json | Set-Content -LiteralPath .env.supabase.json
+      - name: Build signed universal beta APK
+        run: flutter build apk --release --dart-define-from-file=.env.supabase.json --dart-define=NOTED_UPDATE_CHANNEL=beta --build-name $env:RELEASE_VERSION --build-number $env:RELEASE_BUILD
+      - name: Verify artifact, upload, read back and publish last
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOTED_SIGNING_CERT_SHA256: ${{ vars.NOTED_SIGNING_CERT_SHA256 }}
+        run: |
+          $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
+          $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $buildTools) { throw 'Android SDK build tools are missing.' }
+          node tools/releases/release.mjs publish --apk build/app/outputs/flutter-apk/app-release.apk --version $env:RELEASE_VERSION --build $env:RELEASE_BUILD --changelog $env:RELEASE_CHANGELOG --build-tools $buildTools.FullName
+      - name: Remove ephemeral signing material
+        if: always()
+        run: |
+          foreach ($localFile in @((Join-Path $env:RUNNER_TEMP 'noted-beta-release.jks'), (Join-Path $pwd 'android/key.properties'), (Join-Path $pwd '.env.supabase.json'))) {
+            if (Test-Path -LiteralPath $localFile) { Remove-Item -LiteralPath $localFile -Force }
+          }

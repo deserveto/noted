@@ -348,9 +348,10 @@ test('private storage buckets (`public = false`) and storage.objects RLS for ava
   const ctx = await createSupabaseTestDb();
   await seedUsers(ctx);
 
-  // Verify both buckets exist and are strictly private (`public = false`)
+  // Verify every dedicated bucket exists and is strictly private (`public = false`)
   const buckets = await ctx.db.query(`SELECT id, public FROM storage.buckets ORDER BY id`);
   assert.deepEqual(buckets.rows, [
+    { id: 'app-releases', public: false },
     { id: 'avatars', public: false },
     { id: 'note-media', public: false },
   ]);

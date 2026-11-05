@@ -12,6 +12,9 @@ import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/connection_viewmodel.dart';
 import 'viewmodels/note_viewmodel.dart';
 import 'viewmodels/theme_viewmodel.dart';
+import 'viewmodels/update_viewmodel.dart';
+import 'repositories/update_repository.dart';
+import 'services/update_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +23,9 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+            create: (_) =>
+                UpdateViewModel(UpdateRepository(), UpdateService())),
         ChangeNotifierProvider(
           create: (_) => AuthViewModel(AuthRepository())..initialize(),
         ),
