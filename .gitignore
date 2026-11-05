@@ -57,3 +57,9 @@ node_modules/
 tools/migration/exports/
 tools/migration/service-account*.json
 *firebase-adminsdk*.json
+
+# Project-local release proposals (review state, never approval or credentials)
+.noted/release-proposal.json
+
+# Transient agent task logs; maintained skills stay under .agents/skills/
+.agents/teamwork/

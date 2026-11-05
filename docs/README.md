@@ -6,6 +6,8 @@ Start with the [project overview](../README.md) for screenshots, features, and l
 
 | Guide | What you will find |
 |---|---|
+| [Coding-agent workflow](agent-workflow.md) | Shared Codex/OpenCode/Antigravity issue work, release intent, and the portable beta-release skill |
+| [Beta releases](beta-releases.md) | Signing, verified APK publication, authenticated updates, withdrawal and device acceptance |
 | [Supabase setup & cutover](SUPABASE_SETUP_AND_CUTOVER.md) | Client/server configuration, Auth and activity email, migrations/functions, schedules, signing, and release checks |
 | [Backend overview](../supabase/README.md) | Services, functions, authorization boundaries, and verification |
 | [Design system](../DESIGN.md) | Color/type tokens, shared components, navigation, accessibility, and document behavior |
