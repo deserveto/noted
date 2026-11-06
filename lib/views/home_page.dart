@@ -76,18 +76,24 @@ class HomePage extends StatelessWidget {
                       letterSpacing: .96)),
               const SizedBox(height: 8),
               Text.rich(
-                  TextSpan(text: '$greet, ', children: [
-                    TextSpan(
-                        text: '$first.',
-                        style: TextStyle(
-                            fontFamily: 'Newsreader',
-                            fontStyle: FontStyle.italic,
-                            fontWeight: FontWeight.w400,
-                            color: theme.colorScheme.primary))
-                  ]),
+                  TextSpan(
+                      text: first.isEmpty ? '$greet.' : '$greet, ',
+                      children: [
+                        if (first.isNotEmpty)
+                          TextSpan(
+                              text: '$first.',
+                              style: TextStyle(
+                                  fontFamily: 'Newsreader',
+                                  fontVariations: const [
+                                    FontVariation('opsz', 32)
+                                  ],
+                                  fontStyle: FontStyle.italic,
+                                  fontWeight: FontWeight.w400,
+                                  color: theme.colorScheme.primary))
+                      ]),
                   style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
-              Text('Your thoughts, beautifully organized.',
+              Text('Pick up where you left off.',
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 24),
@@ -185,8 +191,7 @@ class HomePage extends StatelessWidget {
                 const SectionHeader('Your library'),
                 EmptyState(
                     title: 'A blank page',
-                    message:
-                        'Capture your first idea — it only takes a second.',
+                    message: 'Capture your first idea.',
                     actionLabel: 'New note',
                     onAction: () => createNote(context))
               ] else ...[
@@ -257,15 +262,13 @@ class HomePage extends StatelessWidget {
                                 ]))))),
                 if (recent.length > 1) ...[
                   const SizedBox(height: 12),
-                  SizedBox(
-                      height: 40,
-                      child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: (recent.length - 1).clamp(0, 4),
-                          separatorBuilder: (_, i) => const SizedBox(width: 8),
-                          itemBuilder: (context, i) {
-                            final n = recent[i + 1];
-                            return OutlinedButton(
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: [
+                      for (final n in recent.skip(1).take(4))
+                        Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: OutlinedButton(
                                 onPressed: () => openNote(context, n),
                                 style: OutlinedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(
@@ -292,8 +295,9 @@ class HomePage extends StatelessWidget {
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                   fontSize: 13)))
-                                    ]));
-                          }))
+                                    ]))),
+                    ]),
+                  )
                 ],
                 const SectionHeader('Your library'),
                 SurfacePanel(

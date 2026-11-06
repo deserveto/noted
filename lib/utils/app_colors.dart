@@ -1,24 +1,34 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const star = Color(0xFFE8A93A);
+  static const star = Color(0xFF9A6200);
+  static const darkStar = Color(0xFFE8A93A);
+  static const controlOutline = Color(0xFF7A766E);
+  static const darkControlOutline = Color(0xFF7E8680);
+
+  static Color starFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkStar : star;
   static const darkPrimary = Color(0xFF86B7A3);
   static const colorKeys = ['blue', 'pink', 'mint', 'yellow', 'peach', 'lav'];
   static Color noteColor(Brightness brightness, String key) {
     final index = colorKeys.indexOf(key);
-    return noteColorFor(brightness, index < 0 ? 0 : index);
+    if (index < 0) {
+      return brightness == Brightness.dark ? darkSurface : surface;
+    }
+    return noteColorFor(brightness, index);
   }
 
   static const background = Color(0xFFF8F7F2);
   static const surface = Color(0xFFFFFFFF);
   static const searchFill = Color(0xFFEFEDE5);
-  static const primary = Color(0xFF6A9C89);
-  static const primaryDark = Color(0xFF4F7E6C);
+  static const primary = Color(0xFF497665);
+  static const primaryDark = primary;
   static const secondary = Color(0xFFFFD66B);
   static const text = Color(0xFF2F2F2F);
-  static const mutedText = Color(0xFF6F6F6F);
+  static const mutedText = Color(0xFF666662);
   static const card = Color(0xFFFFFFFF);
-  static const error = Color(0xFFE57373);
+  static const error = Color(0xFFB83B3B);
+  static const darkError = Color(0xFFE57373);
   static const ink = Color(0xFF2F2F2F);
   static const border = Color(0xFFE4E0D7);
   static const disabled = Color(0xFFBDB8AD);

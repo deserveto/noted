@@ -1,3 +1,4 @@
+import '../utils/app_colors.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -214,8 +215,11 @@ class _AudioRecordingSheetState extends State<AudioRecordingSheet> {
   Future<void> _start() async {
     try {
       if (!await _recorder.hasPermission()) {
-        throw StateError(
-            'Allow microphone access in device settings to record a voice memo.');
+        if (mounted) {
+          setState(() => _error =
+              'Allow microphone access in device settings to record a voice memo.');
+        }
+        return;
       }
       final directory = await getTemporaryDirectory();
       await _recorder.start(const RecordConfig(),
@@ -231,7 +235,9 @@ class _AudioRecordingSheetState extends State<AudioRecordingSheet> {
         if (mounted) setState(() {});
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() => _error = 'Couldn’t record the voice memo. Try again.');
+      }
     }
   }
 
@@ -250,7 +256,7 @@ class _AudioRecordingSheetState extends State<AudioRecordingSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Couldn’t record the voice memo. Try again.';
           _stopping = false;
         });
       }
@@ -337,31 +343,42 @@ class _DoodleSheetState extends State<DoodleSheet> {
                   onPressed: () => Navigator.pop(context),
                   icon: const ReferenceIcon('x'))
             ]),
-            RepaintBoundary(
-                key: _key,
-                child: GestureDetector(
-                  onPanStart: (e) => setState(
-                      () => _strokes.add(_Stroke(_ink, [e.localPosition]))),
-                  onPanUpdate: (e) =>
-                      setState(() => _strokes.last.points.add(e.localPosition)),
-                  child: AspectRatio(
-                      aspectRatio: 700 / 480,
-                      child: CustomPaint(
-                          painter: _DoodlePainter(_strokes),
-                          child: const SizedBox.expand())),
-                )),
+            DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.darkControlOutline
+                        : AppColors.controlOutline,
+                    width: 1.5,
+                  ),
+                ),
+                child: RepaintBoundary(
+                    key: _key,
+                    child: GestureDetector(
+                      onPanStart: (e) => setState(
+                          () => _strokes.add(_Stroke(_ink, [e.localPosition]))),
+                      onPanUpdate: (e) => setState(
+                          () => _strokes.last.points.add(e.localPosition)),
+                      child: AspectRatio(
+                          aspectRatio: 700 / 480,
+                          child: CustomPaint(
+                              painter: _DoodlePainter(_strokes),
+                              child: const SizedBox.expand())),
+                    ))),
             const SizedBox(height: 12),
-            Row(children: [
-              for (final c in const [
-                Color(0xff2f2f2f),
-                Color(0xff4f7e6c),
-                Color(0xffe57373),
-                Color(0xff5b8def)
+            Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+              for (final (c, label) in const [
+                (Color(0xff2f2f2f), 'Charcoal ink'),
+                (Color(0xff4f7e6c), 'Sage ink'),
+                (Color(0xffb83b3b), 'Coral ink'),
+                (Color(0xff375da9), 'Blue ink'),
               ])
                 Semantics(
                     selected: _ink == c,
                     child: IconButton(
-                        tooltip: 'Ink ${c.toARGB32().toRadixString(16)}',
+                        tooltip: label,
                         onPressed: () => setState(() => _ink = c),
                         icon: Container(
                             width: 24,
@@ -372,9 +389,9 @@ class _DoodleSheetState extends State<DoodleSheet> {
                                 border: _ink == c
                                     ? Border.all(color: Colors.white, width: 3)
                                     : null)))),
-              const Spacer(),
               TextButton(
-                  onPressed: () => setState(_strokes.clear),
+                  onPressed:
+                      _strokes.isEmpty ? null : () => setState(_strokes.clear),
                   child: const Text('Clear')),
               FilledButton(
                   onPressed: _strokes.isEmpty || _busy
@@ -403,7 +420,7 @@ class _DoodlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRRect(
         RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(14)),
-        Paint()..color = Colors.white);
+        Paint()..color = const Color(0xFFFDFCF8));
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     for (final stroke in strokes) {

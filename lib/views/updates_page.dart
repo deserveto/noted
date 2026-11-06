@@ -63,7 +63,9 @@ class _UpdatesPageState extends State<UpdatesPage> {
                                 'Channel: ${vm.channel.isEmpty ? 'not configured' : vm.channel}'),
                             const SizedBox(height: 24),
                             if (_loading)
-                              const Center(child: CircularProgressIndicator())
+                              const Center(
+                                  child: CircularProgressIndicator(
+                                      semanticsLabel: 'Checking for updates'))
                             else ...[
                               Text(_error ??
                                   (widget.history

@@ -6,11 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/account_services.dart';
 import '../services/media_url_resolver.dart';
 import '../widgets/reference_icon.dart';
+import '../widgets/noted_ui.dart';
 import '../services/recently_deleted_page.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/note_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
-import '../utils/pluralize.dart';
 import '../viewmodels/update_viewmodel.dart';
 import '../services/update_service.dart';
 import 'updates_page.dart';
@@ -46,7 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _toast(String text) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      notedToast(context, text);
     }
   }
 
@@ -56,7 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await action();
       if (success != null) _toast(success);
     } catch (error) {
-      _toast(error.toString());
+      _toast('Couldn’t complete this action. Try again.');
     }
   }
 
@@ -107,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
       try {
         if (!await AppLockService().authenticate()) return;
       } catch (error) {
-        _toast(error.toString());
+        _toast('Couldn’t complete this action. Try again.');
         return;
       }
     }
@@ -115,7 +115,7 @@ class _SettingsPageState extends State<SettingsPage> {
       try {
         await _clearAiHistory();
       } catch (error) {
-        _toast(error.toString());
+        _toast('Couldn’t complete this action. Try again.');
         return;
       }
     }
@@ -147,8 +147,9 @@ class _SettingsPageState extends State<SettingsPage> {
         subtitle: valueAsSubtitle
             ? Text(
                 desc == null ? selectedText : '$selectedText · $desc',
-                style:
-                    TextStyle(fontSize: 13, color: Theme.of(context).hintColor),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               )
             : (desc == null
                 ? null
@@ -163,7 +164,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               fontSize: 13,
-                              color: Theme.of(context).hintColor))),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant))),
                   const ReferenceIcon('next', size: 16)
                 ])),
         onTap: () => showModalBottomSheet<void>(
@@ -184,10 +187,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           const SizedBox(height: 12),
                           ...options.entries.map((option) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: Icon(
-                                  value == option.key
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_off,
+                              leading: ReferenceIcon(
+                                  value == option.key ? 'check' : 'radio',
                                   color: value == option.key
                                       ? Theme.of(context).colorScheme.primary
                                       : null),
@@ -218,7 +219,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Text(value,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          fontSize: 13, color: Theme.of(context).hintColor))),
+                          fontSize: 13,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant))),
             if (action != null) const ReferenceIcon('next', size: 16)
           ]),
           onTap: action);
@@ -235,14 +238,16 @@ class _SettingsPageState extends State<SettingsPage> {
       Padding(
           padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
           child: Row(children: [
-            ReferenceIcon(icon, size: 16, color: Theme.of(context).hintColor),
+            ReferenceIcon(icon,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(width: 8),
             Text(title.toUpperCase(),
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1,
-                    color: Theme.of(context).hintColor))
+                    color: Theme.of(context).colorScheme.onSurfaceVariant))
           ])),
       Container(
           clipBehavior: Clip.antiAlias,
@@ -261,7 +266,8 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
             child: Text(note,
                 style: TextStyle(
-                    fontSize: 12, color: Theme.of(context).hintColor)))
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)))
     ]);
   }
 
@@ -305,498 +311,537 @@ class _SettingsPageState extends State<SettingsPage> {
                 icon: const ReferenceIcon('back')),
             title: const Text('Settings',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
-        body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-            children: [
-              TextField(
-                  controller: _search,
-                  onChanged: (v) => setState(() => _query = v),
-                  decoration: InputDecoration(
-                      hintText: 'Search settings',
-                      prefixIcon: const Center(
-                          widthFactor: 1,
-                          child: ReferenceIcon('search', size: 16)),
-                      suffixIcon: _query.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Clear search',
-                              icon: const ReferenceIcon('x', size: 18),
-                              onPressed: () {
-                                _search.clear();
-                                setState(() => _query = '');
-                              }))),
-              if (vm.errorMessage != null)
-                Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(vm.errorMessage!,
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.error))),
-              if (_query.isEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                    decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        border:
-                            Border.all(color: Theme.of(context).dividerColor),
-                        borderRadius: BorderRadius.circular(16)),
-                    child: ListTile(
-                        contentPadding: const EdgeInsets.all(14),
-                        leading: _settingsAvatar(
-                            user?.name ?? '', user?.avatarUrl ?? ''),
-                        title: Text(user?.name ?? '',
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600)),
-                        subtitle: Text(user?.email ?? '',
-                            style: const TextStyle(fontSize: 13)),
-                        trailing: const ReferenceIcon('next', size: 16),
-                        onTap: () => showEditProfile(context))),
-                Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
-                    child: Text('THEME',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                            color: Theme.of(context).hintColor))),
-                Row(children: [
-                  for (final mode in ['light', 'dark', 'system'])
-                    Expanded(
-                        child: Padding(
-                            padding: EdgeInsets.only(
-                                right: mode == 'system' ? 0 : 8),
-                            child: Semantics(
-                                selected: s.theme == mode,
-                                button: true,
-                                label:
-                                    '${mode[0].toUpperCase()}${mode.substring(1)} theme',
-                                child: InkWell(
-                                    borderRadius: BorderRadius.circular(16),
-                                    onTap: () => _set('theme', mode),
-                                    child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
+        body: Center(
+            child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                    children: [
+                      TextField(
+                          controller: _search,
+                          onChanged: (v) => setState(() => _query = v),
+                          decoration: InputDecoration(
+                              labelText: 'Search settings',
+                              prefixIcon: const Center(
+                                  widthFactor: 1,
+                                  child: ReferenceIcon('search', size: 16)),
+                              suffixIcon: _query.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      icon: const ReferenceIcon('x', size: 18),
+                                      onPressed: () {
+                                        _search.clear();
+                                        setState(() => _query = '');
+                                      }))),
+                      if (vm.errorMessage != null)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(vm.errorMessage!,
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error))),
+                      if (_query.isEmpty) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                            decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                border: Border.all(
+                                    color: Theme.of(context).dividerColor),
+                                borderRadius: BorderRadius.circular(16)),
+                            child: ListTile(
+                                contentPadding: const EdgeInsets.all(14),
+                                leading: _settingsAvatar(
+                                    user?.name ?? '', user?.avatarUrl ?? ''),
+                                title: Text(user?.name ?? '',
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600)),
+                                subtitle: Text(user?.email ?? '',
+                                    style: const TextStyle(fontSize: 13)),
+                                trailing: const ReferenceIcon('next', size: 16),
+                                onTap: () => showEditProfile(context))),
+                        Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
+                            child: Text('THEME',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant))),
+                        Row(children: [
+                          for (final mode in ['light', 'dark', 'system'])
+                            Expanded(
+                                child: Padding(
+                                    padding: EdgeInsets.only(
+                                        right: mode == 'system' ? 0 : 8),
+                                    child: Semantics(
+                                        selected: s.theme == mode,
+                                        button: true,
+                                        label:
+                                            '${mode[0].toUpperCase()}${mode.substring(1)} theme',
+                                        child: InkWell(
                                             borderRadius:
                                                 BorderRadius.circular(16),
-                                            border: Border.all(
-                                                width: 2,
-                                                color: s.theme == mode
-                                                    ? Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                    : Theme.of(context)
-                                                        .dividerColor)),
-                                        child: Column(children: [
-                                          ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              child: Row(children: [
-                                                for (final dark
-                                                    in mode == 'system'
-                                                        ? [false, true]
-                                                        : [mode == 'dark'])
-                                                  Expanded(
-                                                      child: Container(
-                                                          height: 56,
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .all(7),
-                                                          color: dark
-                                                              ? const Color(
-                                                                  0xFF1B1E1C)
-                                                              : const Color(
-                                                                  0xFFF8F7F2),
-                                                          child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                Container(
-                                                                    width: 24,
-                                                                    height: 6,
-                                                                    decoration: BoxDecoration(
-                                                                        color: dark
-                                                                            ? const Color(
-                                                                                0xFFF1EEE4)
-                                                                            : const Color(
-                                                                                0xFF2F2F2F),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(3))),
-                                                                const SizedBox(
-                                                                    height: 6),
-                                                                Container(
-                                                                    height: 24,
-                                                                    decoration: BoxDecoration(
-                                                                        color: dark
-                                                                            ? const Color(
-                                                                                0xFF3A3549)
-                                                                            : const Color(
-                                                                                0xFFD9CCFF),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(6)))
-                                                              ])))
-                                              ])),
-                                          const SizedBox(height: 6),
-                                          Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                if (s.theme == mode) ...[
-                                                  ReferenceIcon('check',
-                                                      size: 13,
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .primary),
-                                                  const SizedBox(width: 4)
-                                                ],
-                                                Text(
-                                                    '${mode[0].toUpperCase()}${mode.substring(1)}',
-                                                    style: const TextStyle(
-                                                        fontSize: 13,
-                                                        fontWeight:
-                                                            FontWeight.w500))
-                                              ]),
-                                        ]))))))
-                ]),
-              ],
-              _group('Account', 'user', [
-                (
-                  'Edit profile Name and field of study',
-                  _row('Edit profile', () => showEditProfile(context),
-                      desc: 'Name and field of study')
-                ),
-                ('Email', _row('Email', null, value: user?.email ?? '')),
-                ('Change password', _row('Change password', _password))
-              ]),
-              _group('Appearance', 'sun', [
-                (
-                  'Editor text size',
-                  Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(children: [
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Expanded(
-                                  child: Text('Editor text size',
-                                      style: TextStyle(fontSize: 15))),
-                              Text('${s.textSize.round()}px',
-                                  style: const TextStyle(fontSize: 13))
-                            ]),
-                        Slider(
-                            value: s.textSize.clamp(14, 20),
-                            min: 14,
-                            max: 20,
-                            divisions: 6,
-                            label: '${s.textSize.round()}px',
-                            onChanged: (v) => _set('textSize', v)),
-                        Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
+                                            onTap: () => _set('theme', mode),
+                                            child: Container(
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            16),
+                                                    border: Border.all(
+                                                        width: 2,
+                                                        color: s.theme == mode
+                                                            ? Theme.of(context)
+                                                                .colorScheme
+                                                                .primary
+                                                            : Theme.of(context)
+                                                                .dividerColor)),
+                                                child: Column(children: [
+                                                  ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10),
+                                                      child: Row(children: [
+                                                        for (final dark
+                                                            in mode == 'system'
+                                                                ? [false, true]
+                                                                : [
+                                                                    mode ==
+                                                                        'dark'
+                                                                  ])
+                                                          Expanded(
+                                                              child: Container(
+                                                                  height: 56,
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .all(
+                                                                          7),
+                                                                  color: dark
+                                                                      ? const Color(
+                                                                          0xFF1B1E1C)
+                                                                      : const Color(
+                                                                          0xFFF8F7F2),
+                                                                  child: Column(
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .start,
+                                                                      children: [
+                                                                        Container(
+                                                                            width:
+                                                                                24,
+                                                                            height:
+                                                                                6,
+                                                                            decoration:
+                                                                                BoxDecoration(color: dark ? const Color(0xFFF1EEE4) : const Color(0xFF2F2F2F), borderRadius: BorderRadius.circular(3))),
+                                                                        const SizedBox(
+                                                                            height:
+                                                                                6),
+                                                                        Container(
+                                                                            height:
+                                                                                24,
+                                                                            decoration:
+                                                                                BoxDecoration(color: dark ? const Color(0xFF3A3549) : const Color(0xFFD9CCFF), borderRadius: BorderRadius.circular(6)))
+                                                                      ])))
+                                                      ])),
+                                                  const SizedBox(height: 6),
+                                                  Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        if (s.theme ==
+                                                            mode) ...[
+                                                          ReferenceIcon('check',
+                                                              size: 13,
+                                                              color: Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .primary),
+                                                          const SizedBox(
+                                                              width: 4)
+                                                        ],
+                                                        Text(
+                                                            '${mode[0].toUpperCase()}${mode.substring(1)}',
+                                                            style: const TextStyle(
+                                                                fontSize: 13,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500))
+                                                      ]),
+                                                ]))))))
+                        ]),
+                      ],
+                      _group('Account', 'user', [
+                        (
+                          'Edit profile Name, role, or department',
+                          _row('Edit profile', () => showEditProfile(context),
+                              desc: 'Name, role, or department')
+                        ),
+                        (
+                          'Email',
+                          _row('Email', null, value: user?.email ?? '')
+                        ),
+                        ('Change password', _row('Change password', _password))
+                      ]),
+                      _group('Appearance', 'sun', [
+                        (
+                          'Editor text size',
+                          Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(children: [
+                                Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Expanded(
+                                          child: Text('Editor text size',
+                                              style: TextStyle(fontSize: 15))),
+                                      Text('${s.textSize.round()}px',
+                                          style: const TextStyle(fontSize: 13))
+                                    ]),
+                                Slider(
+                                    value: s.textSize.clamp(14, 20),
+                                    min: 14,
+                                    max: 20,
+                                    divisions: 6,
+                                    label: '${s.textSize.round()}px',
+                                    onChanged: (v) => _set('textSize', v)),
+                                Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    child: Text(
+                                        'Send the revised project brief before Friday.',
+                                        style: TextStyle(
+                                            fontSize: s.textSize, height: 1.6)))
+                              ]))
+                        ),
+                        (
+                          'Card density',
+                          _choice(
+                              'density',
+                              'Card density',
+                              {
+                                'comfortable': 'Comfortable',
+                                'compact': 'Compact'
+                              },
+                              'How much preview each note card shows')
+                        ),
+                        (
+                          'Reduce motion',
+                          _toggle('reduceMotion', 'Reduce motion',
+                              'Minimize animations and transitions')
+                        )
+                      ]),
+                      _group('Writing', 'edit', [
+                        (
+                          'Default category',
+                          _choice('defaultCat', 'Default category', {
+                            for (final cat in {
+                              ...context.watch<NoteViewModel>().categories,
+                              'Personal'
+                            })
+                              cat: cat
+                          })
+                        ),
+                        (
+                          'New note color',
+                          _choice(
+                            'defaultColor',
+                            'New note color',
+                            {
+                              'auto': 'Rotate automatically',
+                              'blue': 'Powder blue',
+                              'pink': 'Blush pink',
+                              'mint': 'Mint',
+                              'yellow': 'Butter yellow',
+                              'peach': 'Peach',
+                              'lav': 'Lavender'
+                            },
+                            null,
+                            true,
+                          )
+                        ),
+                        ('Spell check', _toggle('spellcheck', 'Spell check')),
+                        (
+                          'Show word count',
+                          _toggle('wordCount', 'Show word count')
+                        )
+                      ]),
+                      _group('Library & calendar', 'cal', [
+                        (
+                          'Default view',
+                          _choice('defaultView', 'Default view',
+                              {'grid': 'Grid', 'list': 'List'})
+                        ),
+                        (
+                          'Default sort',
+                          _choice('defaultSort', 'Default sort', {
+                            'Last edited': 'Last edited',
+                            'Date created': 'Date created',
+                            'Title A–Z': 'Title A–Z'
+                          })
+                        ),
+                        (
+                          'Week starts on',
+                          _choice('weekStart', 'Week starts on',
+                              {'mon': 'Monday', 'sun': 'Sunday'})
+                        ),
+                        (
+                          'Show note dots on Home Activity markers in the week strip',
+                          _toggle('calendarDots', 'Show note dots on Home',
+                              'Activity markers in the week strip')
+                        )
+                      ]),
+                      _group(
+                          'Noted AI',
+                          'spark',
+                          [
+                            (
+                              'Enable Noted AI',
+                              _toggle('aiEnabled', 'Enable Noted AI',
+                                  'Show AI in the tab bar and editor')
+                            ),
+                            if (s.aiEnabled) ...[
+                              (
+                                'Response length',
+                                _choice('aiLength', 'Response length', {
+                                  'concise': 'Concise',
+                                  'balanced': 'Balanced',
+                                  'detailed': 'Detailed'
+                                })
+                              ),
+                              (
+                                'Tone',
+                                _choice('aiTone', 'Tone', {
+                                  'friendly': 'Friendly',
+                                  'academic': 'Academic'
+                                })
+                              ),
+                              (
+                                'Always show sources',
+                                _toggle('aiSources', 'Always show sources',
+                                    'List the notes each answer is based on')
+                              ),
+                              (
+                                'Keep chat history',
+                                _toggle('aiHistory', 'Keep chat history')
+                              ),
+                              (
+                                'Clear AI chat history',
+                                _row(
+                                    'Clear AI chat history',
+                                    () => _confirm(
+                                        'Clear AI chat history?',
+                                        'This permanently removes your saved AI conversations.',
+                                        'Clear',
+                                        () => _action(_clearAiHistory,
+                                            'AI chat history cleared')))
+                              )
+                            ]
+                          ],
+                          note:
+                              'AI never changes a note without your approval.'),
+                      _group('Sharing & collaboration', 'people', [
+                        (
+                          'Who can send requests',
+                          _choice('requests', 'Who can send requests', {
+                            'everyone': 'Everyone',
+                            'mutual': 'Friends of connections',
+                            'nobody': 'No one'
+                          })
+                        ),
+                        (
+                          'Default live permission',
+                          _choice(
+                              'livePerm',
+                              'Default live permission',
+                              {'edit': 'Can edit', 'view': 'Can view'},
+                              'For new collaborators')
+                        ),
+                        (
+                          'Show my presence',
+                          _toggle('presence', 'Show my presence',
+                              'Let others see when you’re in a live note')
+                        ),
+                        (
+                          'Allow copies to be re-shared',
+                          _toggle('reshare', 'Allow copies to be re-shared')
+                        )
+                      ]),
+                      _group('Notifications', 'bell', [
+                        (
+                          'Live note activity',
+                          _toggle('nLive', 'Live note activity')
+                        ),
+                        (
+                          'Connection requests',
+                          _toggle('nRequests', 'Connection requests')
+                        ),
+                        (
+                          'Notes shared with me',
+                          _toggle('nCopies', 'Notes shared with me')
+                        ),
+                        (
+                          'Weekly recap',
+                          _toggle('nRecap', 'Weekly recap',
+                              'A short Sunday summary')
+                        ),
+                        (
+                          'Quiet hours',
+                          _toggle('quietHours', 'Quiet hours',
+                              'Silence notifications 10 pm – 7 am')
+                        )
+                      ]),
+                      _group('Privacy & data', 'lock', [
+                        (
+                          'App lock',
+                          _toggle('appLock', 'App lock',
+                              'Require fingerprint or PIN to open')
+                        ),
+                        (
+                          'Export all notes',
+                          _row(
+                              'Export all notes',
+                              () => _action(() => ExportService().share(
+                                    notes,
+                                    confirmPartial: _confirmPartialExport,
+                                  )),
+                              desc:
+                                  'JSON data only; attachment files are excluded. No automatic restore.',
+                              value: pluralize(notes.length, 'note'))
+                        ),
+                        (
+                          'Recently deleted',
+                          _row(
+                              'Recently deleted',
+                              () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const RecentlyDeletedPage())),
+                              desc: 'Restore or permanently delete notes')
+                        ),
+                        (
+                          'Reset settings',
+                          _row(
+                              'Reset settings',
+                              () => _confirm(
+                                      'Reset all settings?',
+                                      'Appearance, writing, AI and notification preferences go back to defaults. Your notes aren’t affected.',
+                                      'Reset', () async {
+                                    if (await vm.reset()) {
+                                      _toast('Settings reset');
+                                    }
+                                  }))
+                        )
+                      ]),
+                      _group('Support & about', 'help', [
+                        (
+                          'Send feedback',
+                          _row(
+                              'Send feedback',
+                              () => _action(() async {
+                                    if (!await launchUrl(Uri(
+                                        scheme: const String.fromEnvironment(
+                                                    'NOTED_FEEDBACK_EMAIL')
+                                                .isEmpty
+                                            ? 'https'
+                                            : 'mailto',
+                                        host: const String.fromEnvironment(
+                                                    'NOTED_FEEDBACK_EMAIL')
+                                                .isEmpty
+                                            ? 'github.com'
+                                            : null,
+                                        path: const String.fromEnvironment(
+                                                    'NOTED_FEEDBACK_EMAIL')
+                                                .isEmpty
+                                            ? '/deserveto/noted/issues/new'
+                                            : const String.fromEnvironment(
+                                                'NOTED_FEEDBACK_EMAIL')))) {
+                                      throw StateError(
+                                          'Couldn’t open feedback. Try again after checking your connection.');
+                                    }
+                                  }))
+                        ),
+                        ('Version', _row('Version', null, value: _version)),
+                        if (context.watch<UpdateViewModel?>()
+                            case final updates?) ...[
+                          (
+                            'Check for updates',
+                            _row(
+                                'Check for updates',
+                                () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            UpdatesPage(vm: updates))))
+                          ),
+                          (
+                            'Release history',
+                            _row(
+                                'Release history',
+                                () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                        builder: (_) => UpdatesPage(
+                                            vm: updates, history: true))))
+                          ),
+                        ],
+                      ]),
+                      if (_query.isNotEmpty && _matchingRows == 0)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 40),
+                            child: Text('No settings match “$_query”.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant))),
+                      if (_query.isEmpty) ...[
+                        const SizedBox(height: 32),
+                        OutlinedButton(
+                            onPressed: () => _confirm(
+                                    'Log out of Noted?',
+                                    'Your saved notes will be here when you sign in again.',
+                                    'Log out', () async {
+                                  await auth.signOut();
+                                  if (context.mounted) {
+                                    Navigator.popUntil(
+                                        context, (route) => route.isFirst);
+                                  }
+                                }),
+                            style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(56)),
+                            child: const Text('Log out')),
+                        TextButton(
+                            onPressed: _delete,
+                            style: TextButton.styleFrom(
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.error,
+                                minimumSize: const Size.fromHeight(48)),
+                            child: const Text('Delete account')),
+                        Text(
+                            'Settings apply instantly and sync across your devices.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .colorScheme
-                                    .surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(12)),
-                            child: Text(
-                                'Gradient descent is just walking downhill, one small step at a time.',
-                                style: TextStyle(
-                                    fontSize: s.textSize, height: 1.6)))
-                      ]))
-                ),
-                (
-                  'Card density',
-                  _choice(
-                      'density',
-                      'Card density',
-                      {'comfortable': 'Comfortable', 'compact': 'Compact'},
-                      'How much preview each note card shows')
-                ),
-                (
-                  'Reduce motion',
-                  _toggle('reduceMotion', 'Reduce motion',
-                      'Minimise animations and transitions')
-                )
-              ]),
-              _group('Writing', 'edit', [
-                (
-                  'Default category',
-                  _choice('defaultCat', 'Default category', {
-                    for (final cat in {
-                      ...context.watch<NoteViewModel>().categories,
-                      'Personal'
-                    })
-                      cat: cat
-                  })
-                ),
-                (
-                  'New note color',
-                  _choice(
-                    'defaultColor',
-                    'New note color',
-                    {
-                      'auto': 'Rotate automatically',
-                      'blue': 'Powder blue',
-                      'pink': 'Blush pink',
-                      'mint': 'Mint',
-                      'yellow': 'Butter yellow',
-                      'peach': 'Peach',
-                      'lav': 'Lavender'
-                    },
-                    null,
-                    true,
-                  )
-                ),
-                ('Spell check', _toggle('spellcheck', 'Spell check')),
-                ('Show word count', _toggle('wordCount', 'Show word count'))
-              ]),
-              _group('Library & calendar', 'cal', [
-                (
-                  'Default view',
-                  _choice('defaultView', 'Default view',
-                      {'grid': 'Grid', 'list': 'List'})
-                ),
-                (
-                  'Default sort',
-                  _choice('defaultSort', 'Default sort', {
-                    'Last edited': 'Last edited',
-                    'Date created': 'Date created',
-                    'Title A–Z': 'Title A–Z'
-                  })
-                ),
-                (
-                  'Week starts on',
-                  _choice('weekStart', 'Week starts on',
-                      {'mon': 'Monday', 'sun': 'Sunday'})
-                ),
-                (
-                  'Show note dots on Home Activity markers in the week strip',
-                  _toggle('calendarDots', 'Show note dots on Home',
-                      'Activity markers in the week strip')
-                )
-              ]),
-              _group(
-                  'Noted AI',
-                  'spark',
-                  [
-                    (
-                      'Enable Noted AI',
-                      _toggle('aiEnabled', 'Enable Noted AI',
-                          'Show AI in the tab bar and editor')
-                    ),
-                    if (s.aiEnabled) ...[
-                      (
-                        'Response length',
-                        _choice('aiLength', 'Response length', {
-                          'concise': 'Concise',
-                          'balanced': 'Balanced',
-                          'detailed': 'Detailed'
-                        })
-                      ),
-                      (
-                        'Tone',
-                        _choice('aiTone', 'Tone',
-                            {'friendly': 'Friendly', 'academic': 'Academic'})
-                      ),
-                      (
-                        'Always show sources',
-                        _toggle('aiSources', 'Always show sources',
-                            'List the notes each answer is based on')
-                      ),
-                      (
-                        'Keep chat history',
-                        _toggle('aiHistory', 'Keep chat history')
-                      ),
-                      (
-                        'Clear AI chat history',
-                        _row(
-                            'Clear AI chat history',
-                            () => _confirm(
-                                'Clear AI chat history?',
-                                'This permanently removes your saved AI conversations.',
-                                'Clear',
-                                () => _action(_clearAiHistory,
-                                    'AI chat history cleared')))
-                      )
-                    ]
-                  ],
-                  note: 'AI never changes a note without your approval.'),
-              _group('Sharing & collaboration', 'people', [
-                (
-                  'Who can send requests',
-                  _choice('requests', 'Who can send requests', {
-                    'everyone': 'Everyone',
-                    'mutual': 'Friends of connections',
-                    'nobody': 'No one'
-                  })
-                ),
-                (
-                  'Default live permission',
-                  _choice(
-                      'livePerm',
-                      'Default live permission',
-                      {'edit': 'Can edit', 'view': 'Can view'},
-                      'For new collaborators')
-                ),
-                (
-                  'Show my presence',
-                  _toggle('presence', 'Show my presence',
-                      'Let others see when you’re in a live note')
-                ),
-                (
-                  'Allow copies to be re-shared',
-                  _toggle('reshare', 'Allow copies to be re-shared')
-                )
-              ]),
-              _group('Notifications', 'bell', [
-                ('Live note activity', _toggle('nLive', 'Live note activity')),
-                (
-                  'Connection requests',
-                  _toggle('nRequests', 'Connection requests')
-                ),
-                (
-                  'Notes shared with me',
-                  _toggle('nCopies', 'Notes shared with me')
-                ),
-                (
-                  'Weekly recap',
-                  _toggle('nRecap', 'Weekly recap', 'A short Sunday summary')
-                ),
-                (
-                  'Quiet hours',
-                  _toggle('quietHours', 'Quiet hours',
-                      'Silence notifications 10 pm – 7 am')
-                )
-              ]),
-              _group('Privacy & data', 'lock', [
-                (
-                  'App lock',
-                  _toggle('appLock', 'App lock',
-                      'Require fingerprint or PIN to open')
-                ),
-                (
-                  'Share anonymous usage data',
-                  _toggle('analytics', 'Share anonymous usage data')
-                ),
-                (
-                  'Export all notes',
-                  _row(
-                      'Export all notes',
-                      () => _action(() => ExportService().share(
-                            notes,
-                            confirmPartial: _confirmPartialExport,
-                          )),
-                      desc:
-                          'JSON data only; attachment files are excluded. No automatic restore.',
-                      value: pluralize(notes.length, 'note'))
-                ),
-                (
-                  'Recently deleted',
-                  _row(
-                      'Recently deleted',
-                      () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                              builder: (_) => const RecentlyDeletedPage())),
-                      desc: 'Restore or permanently delete notes')
-                ),
-                (
-                  'Reset settings',
-                  _row(
-                      'Reset settings',
-                      () => _confirm(
-                              'Reset all settings?',
-                              'Appearance, writing, AI and notification preferences go back to defaults. Your notes aren’t affected.',
-                              'Reset', () async {
-                            if (await vm.reset()) _toast('Settings reset');
-                          }))
-                )
-              ]),
-              _group('Support & about', 'help', [
-                (
-                  'Send feedback',
-                  _row(
-                      'Send feedback',
-                      () => _action(() async {
-                            if (!await launchUrl(Uri(
-                                scheme: const String.fromEnvironment(
-                                            'NOTED_FEEDBACK_EMAIL')
-                                        .isEmpty
-                                    ? 'https'
-                                    : 'mailto',
-                                host: const String.fromEnvironment(
-                                            'NOTED_FEEDBACK_EMAIL')
-                                        .isEmpty
-                                    ? 'github.com'
-                                    : null,
-                                path: const String.fromEnvironment(
-                                            'NOTED_FEEDBACK_EMAIL')
-                                        .isEmpty
-                                    ? '/deserveto/noted/issues/new'
-                                    : const String.fromEnvironment(
-                                        'NOTED_FEEDBACK_EMAIL')))) {
-                              throw StateError(
-                                  'Couldn’t open feedback. Try again after checking your connection.');
-                            }
-                          }))
-                ),
-                ('Version', _row('Version', null, value: _version)),
-                if (context.watch<UpdateViewModel?>() case final updates?) ...[
-                  (
-                    'Check for updates',
-                    _row(
-                        'Check for updates',
-                        () => Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                                builder: (_) => UpdatesPage(vm: updates))))
-                  ),
-                  (
-                    'Release history',
-                    _row(
-                        'Release history',
-                        () => Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    UpdatesPage(vm: updates, history: true))))
-                  ),
-                ],
-              ]),
-              if (_query.isNotEmpty && _matchingRows == 0)
-                Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: Text('No settings match “$_query”.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 14, color: Theme.of(context).hintColor))),
-              if (_query.isEmpty) ...[
-                const SizedBox(height: 32),
-                OutlinedButton(
-                    onPressed: () => _confirm(
-                            'Log out of Noted?',
-                            'Your saved notes will be here when you sign in again.',
-                            'Log out', () async {
-                          await auth.signOut();
-                          if (context.mounted) {
-                            Navigator.popUntil(
-                                context, (route) => route.isFirst);
-                          }
-                        }),
-                    style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56)),
-                    child: const Text('Log out')),
-                TextButton(
-                    onPressed: _delete,
-                    style: TextButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.error,
-                        minimumSize: const Size.fromHeight(48)),
-                    child: const Text('Delete account')),
-                Text('Settings apply instantly and sync across your devices.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 12, color: Theme.of(context).hintColor))
-              ],
-            ]));
+                                    .onSurfaceVariant))
+                      ],
+                    ]))));
   }
 
   Future<void> _confirm(String title, String body, String cta,
@@ -967,7 +1012,7 @@ class _AccountFormState extends State<_AccountForm> {
                             alignment: Alignment.centerLeft,
                             child: TextButton.icon(
                                 onPressed: _busy ? null : _pickAvatar,
-                                icon: const Icon(Icons.add_a_photo_outlined),
+                                icon: const ReferenceIcon('image'),
                                 label: const Text('Change photo'))),
                       if (!recovery)
                         field(
@@ -989,7 +1034,7 @@ class _AccountFormState extends State<_AccountForm> {
                                         : 'Enter your current password.')),
                       field(
                           profile
-                              ? 'Field of study'
+                              ? 'Role or department'
                               : deleting
                                   ? 'Current password'
                                   : 'New password',
@@ -1095,7 +1140,7 @@ class _AccountFormState extends State<_AccountForm> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = error.toString();
+          _error = 'Couldn’t upload the photo. Try again.';
         });
       }
     }

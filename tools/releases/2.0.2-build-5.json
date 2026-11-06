@@ -1,0 +1,6 @@
+[
+  {"type":"changed","text":"Explore sample notes, personal workspaces, and a cited Ask Noted answer on the welcome screen."},
+  {"type":"changed","text":"The note library takes up less space above your notes, and Profile has shortcuts to editing your profile, workspaces, saved decks, and Settings."},
+  {"type":"fixed","text":"Improved contrast for note details, favorite stars, errors, and controls. Improved large-text layouts, screen reader labels, and tap targets."},
+  {"type":"fixed","text":"HTML exports preserve continuous numbered lists and label checklist items."}
+]

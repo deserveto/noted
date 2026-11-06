@@ -167,7 +167,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ActionChip, 'Database'));
       await tester.pumpAndSettle();
-      for (final label in ['Database', 'Important']) {
+      for (final label in ['Database', 'Projects']) {
         final chipFinder = find.widgetWithText(ChoiceChip, label);
         final chip = tester.widget<ChoiceChip>(chipFinder);
         final labelFinder =

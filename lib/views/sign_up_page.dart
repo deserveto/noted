@@ -66,66 +66,58 @@ class _SignUpPageState extends State<SignUpPage> {
                               Text('It takes less than a minute.',
                                   style: TextStyle(
                                       fontSize: 15,
-                                      color: Theme.of(context).hintColor)),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant)),
                               const SizedBox(height: 32),
                               AutofillGroup(
                                   child: Form(
                                       key: _formKey,
                                       child: Column(children: [
-                                        Semantics(
+                                        CustomTextField(
+                                            controller: _name,
                                             label: 'Name',
-                                            textField: true,
-                                            child: CustomTextField(
-                                                controller: _name,
-                                                label: 'Name',
-                                                hint: 'Your name',
-                                                autofillHints: const [
-                                                  AutofillHints.name
-                                                ],
-                                                textInputAction:
-                                                    TextInputAction.next,
-                                                validator: (v) => v
-                                                            ?.trim()
-                                                            .isNotEmpty ==
-                                                        true
-                                                    ? null
-                                                    : 'Tell us what to call you.')),
+                                            hint: 'Your name',
+                                            autofillHints: const [
+                                              AutofillHints.name
+                                            ],
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            validator: (v) => v
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true
+                                                ? null
+                                                : 'Tell us what to call you.'),
                                         const SizedBox(height: 16),
-                                        Semantics(
+                                        CustomTextField(
+                                            controller: _email,
                                             label: 'Email',
-                                            textField: true,
-                                            child: CustomTextField(
-                                                controller: _email,
-                                                label: 'Email',
-                                                hint: 'Your email address',
-                                                keyboardType:
-                                                    TextInputType.emailAddress,
-                                                autofillHints: const [
-                                                  AutofillHints.email
-                                                ],
-                                                textInputAction:
-                                                    TextInputAction.next,
-                                                validator: Validators.email)),
+                                            hint: 'Your email address',
+                                            keyboardType:
+                                                TextInputType.emailAddress,
+                                            autofillHints: const [
+                                              AutofillHints.email
+                                            ],
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            validator: Validators.email),
                                         const SizedBox(height: 16),
-                                        Semantics(
+                                        CustomTextField(
+                                            controller: _password,
                                             label: 'Password',
-                                            textField: true,
-                                            child: CustomTextField(
-                                                controller: _password,
-                                                label: 'Password',
-                                                hint: 'At least 6 characters',
-                                                obscureText: true,
-                                                autofillHints: const [
-                                                  AutofillHints.newPassword
-                                                ],
-                                                textInputAction:
-                                                    TextInputAction.done,
-                                                onFieldSubmitted: (_) =>
-                                                    _submit(),
-                                                validator: (v) => v == null ||
-                                                        v.length < 6
-                                                    ? 'Use at least 6 characters.'
-                                                    : null)),
+                                            hint: 'At least 8 characters',
+                                            obscureText: true,
+                                            autofillHints: const [
+                                              AutofillHints.newPassword
+                                            ],
+                                            textInputAction:
+                                                TextInputAction.done,
+                                            onFieldSubmitted: (_) => _submit(),
+                                            validator: (v) => v == null ||
+                                                    v.length < 8
+                                                ? 'Use at least 8 characters.'
+                                                : null),
                                         if (auth.errorMessage != null) ...[
                                           const SizedBox(height: 16),
                                           InlineError(auth.errorMessage!)
@@ -150,7 +142,8 @@ class _SignUpPageState extends State<SignUpPage> {
                                           style: TextStyle(
                                               fontSize: 14,
                                               color: Theme.of(context)
-                                                  .hintColor)))),
+                                                  .colorScheme
+                                                  .onSurfaceVariant)))),
                             ]))))));
   }
 

@@ -37,7 +37,7 @@ class RecentlyDeletedPage extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(20),
               child: InlineError(
-                'Couldn’t load recently deleted notes. ${snapshot.error}',
+                'Couldn’t load recently deleted notes.',
                 onRetry: () => Navigator.pushReplacement(
                   context,
                   MaterialPageRoute<void>(
@@ -48,7 +48,9 @@ class RecentlyDeletedPage extends StatelessWidget {
             );
           }
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+                child: CircularProgressIndicator(
+                    semanticsLabel: 'Loading deleted notes'));
           }
           final notes = snapshot.data!;
           if (notes.isEmpty) {
@@ -61,7 +63,7 @@ class RecentlyDeletedPage extends StatelessWidget {
                     ReferenceIcon(
                       'trash',
                       size: 40,
-                      color: Theme.of(context).hintColor,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -75,7 +77,7 @@ class RecentlyDeletedPage extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Theme.of(context).hintColor,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -115,7 +117,7 @@ class RecentlyDeletedPage extends StatelessWidget {
                         }
                       } catch (error) {
                         if (context.mounted) {
-                          notedToast(context, 'Couldn’t restore note. $error');
+                          notedToast(context, 'Couldn’t restore note.');
                         }
                       }
                       return;
@@ -147,7 +149,7 @@ class RecentlyDeletedPage extends StatelessWidget {
                       }
                     } catch (error) {
                       if (context.mounted) {
-                        notedToast(context, 'Couldn’t delete note. $error');
+                        notedToast(context, 'Couldn’t delete note.');
                       }
                     }
                   },

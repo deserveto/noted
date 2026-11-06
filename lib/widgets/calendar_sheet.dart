@@ -76,6 +76,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
     final count = DateTime(_month.year, _month.month + 1, 0).day;
     final rows = ((offset + count) / 7).ceil().clamp(5, 6);
     final start = DateTime(_month.year, _month.month, 1 - offset);
+    final days = List.generate(7, (i) => start.add(Duration(days: i)));
     final monthNotes = notes
         .where((n) =>
             n.createdAt.year == _month.year &&
@@ -135,12 +136,12 @@ class _CalendarSheetState extends State<CalendarSheet> {
           Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(children: [
-                for (final d in monday
-                    ? ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-                    : ['S', 'M', 'T', 'W', 'T', 'F', 'S'])
+                for (final day in days)
                   Expanded(
                       child: Center(
-                          child: Text(d,
+                          child: Text(
+                              DateFormat.E().format(day).characters.first,
+                              semanticsLabel: DateFormat.EEEE().format(day),
                               style: theme.textTheme.bodySmall
                                   ?.copyWith(fontSize: 11))))
               ])),
@@ -165,8 +166,11 @@ class _CalendarSheetState extends State<CalendarSheet> {
                                 label:
                                     '${DateFormat.yMMMMd().format(d)}, ${pluralize(n, 'note')}${today ? ', today' : ''}',
                                 excludeSemantics: true,
-                                child: SizedBox(
-                                    height: 48,
+                                button: true,
+                                onTap: () => _pick(d),
+                                child: ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(minHeight: 48),
                                     child: TextButton(
                                         focusNode: _days.putIfAbsent(
                                             dayKey(d),
@@ -199,7 +203,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
                                                             alpha: d.month ==
                                                                     _month.month
                                                                 ? 1
-                                                                : .35)),
+                                                                : .79)),
                                         onPressed: () => _pick(d),
                                         child: Column(
                                             mainAxisAlignment:

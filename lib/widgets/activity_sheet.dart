@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../repositories/activity_repository.dart';
 import '../repositories/note_repository.dart';
-import '../utils/app_colors.dart';
 import '../utils/note_navigation.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../views/connections_page.dart';
@@ -51,7 +50,7 @@ class _ActivityBellState extends State<ActivityBell> {
                           height: 8,
                           decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.error,
+                              color: Theme.of(context).colorScheme.error,
                               border: Border.all(
                                   color:
                                       Theme.of(context).scaffoldBackgroundColor,
@@ -91,7 +90,7 @@ class _ActivitySheetState extends State<ActivitySheet> {
           notedToast(context, 'This note is no longer available.');
         }
       } catch (error) {
-        if (mounted) notedToast(context, 'Couldn’t open this note. $error');
+        if (mounted) notedToast(context, 'Couldn’t open this note.');
       }
     } else {
       Navigator.pop(context);

@@ -129,7 +129,7 @@ class _NotesPageState extends State<NotesPage> {
                   title: 'Your ',
                   accent: 'notes',
                   metadata:
-                      '${pluralize(vm.totalNotes, 'note')} total · ${pluralize(vm.totalFavorites, 'favorite')} total'),
+                      '${pluralize(vm.totalNotes, 'note')} · ${pluralize(vm.totalFavorites, 'favorite')}'),
               const SizedBox(height: 20),
               TextField(
                   controller: _search,
@@ -141,7 +141,7 @@ class _NotesPageState extends State<NotesPage> {
                   },
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
-                      hintText: 'Search titles and content',
+                      labelText: 'Search notes',
                       prefixIcon: const Padding(
                           padding: EdgeInsets.all(14),
                           child: ReferenceIcon('search', size: 18)),
@@ -217,7 +217,7 @@ class _NotesPageState extends State<NotesPage> {
                   decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12)),
-                  child: LayoutBuilder(builder: (context, constraints) {
+                  child: Builder(builder: (context) {
                     final reducedMotion =
                         MediaQuery.disableAnimationsOf(context) ||
                             context
@@ -225,22 +225,25 @@ class _NotesPageState extends State<NotesPage> {
                                 .settings
                                 .reduceMotion;
                     return Stack(children: [
-                      AnimatedAlign(
+                      Positioned.fill(
+                          child: AnimatedAlign(
                         duration: reducedMotion
                             ? Duration.zero
                             : const Duration(milliseconds: 220),
                         curve: Curves.easeInOutCubic,
                         alignment: Alignment(
                             -1 + vm.libraryFilter.index.toDouble(), 0),
-                        child: Container(
-                          width: constraints.maxWidth / 3,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(9),
+                        child: FractionallySizedBox(
+                          widthFactor: 1 / 3,
+                          heightFactor: 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
                           ),
                         ),
-                      ),
+                      )),
                       Row(children: [
                         for (var i = 0; i < 3; i++)
                           Expanded(
@@ -276,7 +279,9 @@ class _NotesPageState extends State<NotesPage> {
                                                       vm.libraryFilter ==
                                                           LibraryFilter
                                                               .favorites
-                                                  ? AppColors.star
+                                                  ? AppColors.starFor(
+                                                      Theme.of(context)
+                                                          .brightness)
                                                   : null),
                                           const SizedBox(width: 4)
                                         ],
@@ -366,7 +371,7 @@ class _NotesPageState extends State<NotesPage> {
     if (vm.notes.isEmpty) {
       return EmptyState(
           title: 'A blank page',
-          message: 'Capture your first idea — it only takes a second.',
+          message: 'Capture your first idea.',
           actionLabel: 'New note',
           onAction: () => createNote(context));
     }

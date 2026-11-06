@@ -151,7 +151,9 @@ class LayoutSettings extends SettingsViewModel {
   SettingsModel get settings => value;
 }
 
-Widget harness(Widget child, LayoutNotes vm, bool dark) => MultiProvider(
+Widget harness(Widget child, LayoutNotes vm, bool dark,
+        {TextScaler textScaler = TextScaler.noScaling}) =>
+    MultiProvider(
         providers: [
           ChangeNotifierProvider<NoteViewModel>.value(value: vm),
           ChangeNotifierProvider<SettingsViewModel>(
@@ -161,7 +163,8 @@ Widget harness(Widget child, LayoutNotes vm, bool dark) => MultiProvider(
         child: MaterialApp(
             theme: dark ? AppTheme.dark : AppTheme.light,
             builder: (context, child) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(disableAnimations: true),
+                data: MediaQuery.of(context)
+                    .copyWith(disableAnimations: true, textScaler: textScaler),
                 child: child!),
             home: RepaintBoundary(
                 key: const ValueKey('screen'), child: Scaffold(body: child))));
@@ -173,6 +176,33 @@ void main() {
     ]) {
       await (FontLoader(f.$1)..addFont(rootBundle.load(f.$2))).load();
     }
+  });
+  testWidgets('library filters and calendar fit at 200% text size',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final vm = LayoutNotes();
+    await tester.pumpWidget(harness(const NotesPage(), vm, false,
+        textScaler: const TextScaler.linear(2)));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Favorites'));
+    await tester.pumpAndSettle();
+    expect(vm.filter, LibraryFilter.favorites);
+    await tester.pumpWidget(harness(
+      CalendarSheet(
+        initial: DateTime(2026, 10, 26),
+        today: DateTime(2026, 10, 26),
+      ),
+      vm,
+      false,
+      textScaler: const TextScaler.linear(2),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Next month'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
   testWidgets('external library reset clears the visible search',
       (tester) async {

@@ -80,7 +80,10 @@ class _NoteCardState extends State<NoteCard> {
                                               fontWeight: FontWeight.w600,
                                               letterSpacing: .88,
                                               color: text.withValues(
-                                                  alpha: .65)))),
+                                                  alpha: theme.brightness ==
+                                                          Brightness.dark
+                                                      ? .72
+                                                      : .78)))),
                                   const SizedBox(height: 6),
                                   Padding(
                                       padding: const EdgeInsets.only(right: 16),
@@ -127,7 +130,10 @@ class _NoteCardState extends State<NoteCard> {
                                             style: TextStyle(
                                                 fontSize: 12,
                                                 color: text.withValues(
-                                                    alpha: .65)))),
+                                                    alpha: theme.brightness ==
+                                                            Brightness.dark
+                                                        ? .72
+                                                        : .78)))),
                                     if (note.isLive)
                                       LiveAvatarStack(
                                           note: note, background: bg)
@@ -147,8 +153,9 @@ class _NoteCardState extends State<NoteCard> {
                                         size: 18,
                                         filled: note.isFavorite,
                                         color: note.isFavorite
-                                            ? AppColors.star
-                                            : text.withValues(alpha: .45))))),
+                                            ? AppColors.starFor(
+                                                theme.brightness)
+                                            : text.withValues(alpha: .64))))),
                       ]))),
             )));
   }

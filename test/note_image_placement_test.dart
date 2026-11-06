@@ -486,7 +486,7 @@ void main() {
     await _focusEditor(tester, controller);
     await _addImage(tester);
     expect(NoteImageDocument.images(controller.document), isEmpty);
-    expect(find.textContaining('upload failed'), findsOneWidget);
+    expect(find.text('Could not add attachment.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     harness.dispose();
 
@@ -504,7 +504,7 @@ void main() {
     await _addImage(tester);
     expect(harness.attachments.uploads, isEmpty);
     expect(NoteImageDocument.images(controller.document), isEmpty);
-    expect(find.textContaining('save failed'), findsOneWidget);
+    expect(find.text('Could not save.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     harness.dispose();
   });

@@ -201,7 +201,7 @@ void main() {
       await pumpLibrary(tester);
 
       expect(find.text('Untitled'), findsOneWidget);
-      expect(find.text('4 notes total · 0 favorites total'), findsOneWidget);
+      expect(find.text('4 notes · 0 favorites'), findsOneWidget);
       expect(find.text('4 notes'), findsOneWidget);
 
       await vm.deleteNote('n1');
@@ -209,7 +209,7 @@ void main() {
 
       expect(find.text('Untitled'), findsNothing,
           reason: 'deleted card must disappear from the Library');
-      expect(find.text('3 notes total · 0 favorites total'), findsOneWidget,
+      expect(find.text('3 notes · 0 favorites'), findsOneWidget,
           reason: 'visible note count must update on delete');
       expect(find.text('3 notes'), findsOneWidget);
 
@@ -227,7 +227,7 @@ void main() {
 
       expect(find.text('Untitled'), findsOneWidget,
           reason: 'Undo must restore that same note card');
-      expect(find.text('4 notes total · 0 favorites total'), findsOneWidget);
+      expect(find.text('4 notes · 0 favorites'), findsOneWidget);
       expect(find.text('4 notes'), findsOneWidget);
       expect(server.notes['n1']!.deletedAt, isNull);
       final trashAfter =

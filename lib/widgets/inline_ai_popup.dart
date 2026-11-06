@@ -167,7 +167,7 @@ class _InlineAiPopupState extends State<InlineAiPopup> {
       ),
       (
         'Clarify',
-        'spark',
+        'eye',
         dark ? const Color(0xFF3B3549) : const Color(0xFFECE6F4),
         dark ? const Color(0xFFD3BFE8) : const Color(0xFF66577A)
       ),
@@ -316,13 +316,11 @@ class _InlineAiPopupState extends State<InlineAiPopup> {
                   IconButton(
                       tooltip: 'Back to edits',
                       onPressed: () => setState(() => _choosingTone = false),
-                      icon: const ReferenceIcon('back', size: 18),
-                      visualDensity: VisualDensity.compact),
+                      icon: const ReferenceIcon('back', size: 18)),
                 IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.maybePop(context),
-                    icon: const ReferenceIcon('x', size: 18),
-                    visualDensity: VisualDensity.compact),
+                    icon: const ReferenceIcon('x', size: 18)),
               ]),
               const SizedBox(height: 14),
               Flexible(

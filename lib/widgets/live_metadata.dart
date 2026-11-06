@@ -7,13 +7,16 @@ import '../viewmodels/auth_viewmodel.dart';
 import 'reference_icon.dart';
 
 class LiveMetadata extends StatefulWidget {
-  const LiveMetadata({super.key, required this.note});
+  const LiveMetadata({super.key, required this.note, this.profileRepository});
   final NoteModel note;
+  final ProfileRepository? profileRepository;
   @override
   State<LiveMetadata> createState() => _LiveMetadataState();
 }
 
 class _LiveMetadataState extends State<LiveMetadata> {
+  late final _defaultRepository = ProfileRepository();
+  ProfileRepository? _loadedWith;
   Future<List<UserModel?>>? _profiles;
   String _ids = '';
   @override
@@ -23,9 +26,11 @@ class _LiveMetadataState extends State<LiveMetadata> {
         .where((id) => id != uid)
         .toList()
       ..sort();
-    if (_ids != ids.join('|') || _profiles == null) {
+    final repository = widget.profileRepository ?? _defaultRepository;
+    if (_ids != ids.join('|') || _loadedWith != repository) {
+      _loadedWith = repository;
       _ids = ids.join('|');
-      _profiles = Future.wait(ids.map(ProfileRepository().load));
+      _profiles = Future.wait(ids.map(repository.load));
     }
     return FutureBuilder<List<UserModel?>>(
         future: _profiles,
@@ -41,6 +46,7 @@ class _LiveMetadataState extends State<LiveMetadata> {
           final color = Theme.of(context).colorScheme.primary;
           return Semantics(
               label: label,
+              excludeSemantics: true,
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 ReferenceIcon('live', size: 13, color: color),
                 const SizedBox(width: 4),

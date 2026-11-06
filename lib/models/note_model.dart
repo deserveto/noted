@@ -61,7 +61,7 @@ class NoteModel {
       ownerEmail: ownerEmail,
       title: '',
       content: '',
-      category: 'Lecture notes',
+      category: 'Personal',
       isFavorite: false,
       sharedWithUserIds: const [],
       pendingSharedWithUserIds: const [],
@@ -72,9 +72,8 @@ class NoteModel {
 
   /// Supports both camelCase domain maps (local cache/tests) and PostgreSQL snake_case rows.
   factory NoteModel.fromMap(Map<String, dynamic> map) {
-    final rawDeleted = map.containsKey('deletedAt')
-        ? map['deletedAt']
-        : map['deleted_at'];
+    final rawDeleted =
+        map.containsKey('deletedAt') ? map['deletedAt'] : map['deleted_at'];
     final rawRoles = map['liveRoles'] ?? map['live_roles'];
     final rawAttachments = map['attachments'];
 
@@ -102,18 +101,19 @@ class NoteModel {
       title: map['title'] as String? ?? '',
       content: map['content'] as String? ?? '',
       category: map['category'] as String? ?? 'Lecture notes',
-      isFavorite:
-          (map['isFavorite'] ?? map['is_favorite']) as bool? ?? false,
+      isFavorite: (map['isFavorite'] ?? map['is_favorite']) as bool? ?? false,
       sharedWithUserIds: _readStringList(
           map['sharedWithUserIds'] ?? map['shared_with_user_ids']),
-      pendingSharedWithUserIds: _readStringList(map['pendingSharedWithUserIds'] ??
-          map['pending_shared_with_user_ids']),
+      pendingSharedWithUserIds: _readStringList(
+          map['pendingSharedWithUserIds'] ??
+              map['pending_shared_with_user_ids']),
       createdAt: _readDate(map['createdAt'] ?? map['created_at']),
       updatedAt: _readDate(map['updatedAt'] ?? map['updated_at']),
     );
   }
 
-  factory NoteModel.fromRow(Map<String, dynamic> row, {bool? personalFavorite}) {
+  factory NoteModel.fromRow(Map<String, dynamic> row,
+      {bool? personalFavorite}) {
     final model = NoteModel.fromMap(row);
     if (personalFavorite != null) {
       return model.copyWith(isFavorite: personalFavorite);
@@ -275,7 +275,10 @@ class NoteModel {
 
   static List<String> _readStringList(Object? value) {
     if (value is Iterable) {
-      return value.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      return value
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
     return const [];
   }

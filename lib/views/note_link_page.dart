@@ -21,7 +21,10 @@ class _NoteLinkPageState extends State<NoteLinkPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     if (auth.isInitializing) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+          body: Center(
+              child: CircularProgressIndicator(
+                  semanticsLabel: 'Opening shared note')));
     }
     if (!auth.isAuthenticated) return const WelcomePage();
     if (_uid != auth.user!.uid) {
@@ -46,7 +49,9 @@ class _NoteLinkPageState extends State<NoteLinkPage> {
           final note = snapshot.data;
           if (note == null) {
             return const Scaffold(
-                body: Center(child: CircularProgressIndicator()));
+                body: Center(
+                    child: CircularProgressIndicator(
+                        semanticsLabel: 'Opening shared note')));
           }
           if (note.deletedAt != null) {
             return Scaffold(
