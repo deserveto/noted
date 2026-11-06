@@ -103,9 +103,11 @@ jobs:
           NOTED_MAX_APK_BYTES: ${{ vars.NOTED_MAX_APK_BYTES || '52428800' }}
         run: |
           $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
-          $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
-          if (-not $buildTools) { throw 'Android SDK build tools are missing.' }
-          node tools/releases/release.mjs publish --apk build/app/outputs/flutter-apk/app-release.apk --version $env:RELEASE_VERSION --build $env:RELEASE_BUILD --changelog $env:RELEASE_CHANGELOG --build-tools $buildTools.FullName
+          $buildTools = Join-Path $sdkRoot 'build-tools/36.0.0'
+          if (!(Test-Path -LiteralPath (Join-Path $buildTools 'aapt.exe')) -or !(Test-Path -LiteralPath (Join-Path $buildTools 'lib/apksigner.jar'))) {
+            throw 'Android SDK Build Tools 36.0.0 is required for APK verification.'
+          }
+          node tools/releases/release.mjs publish --apk build/app/outputs/flutter-apk/app-release.apk --version $env:RELEASE_VERSION --build $env:RELEASE_BUILD --changelog $env:RELEASE_CHANGELOG --build-tools $buildTools
       - name: Remove ephemeral signing material
         if: always()
         run: |
