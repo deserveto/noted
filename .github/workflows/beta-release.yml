@@ -85,8 +85,16 @@ jobs:
           )
           [IO.File]::WriteAllLines((Join-Path $pwd 'android/key.properties'), $properties)
           @{ SUPABASE_URL=$env:PUBLIC_SUPABASE_URL; SUPABASE_ANON_KEY=$env:PUBLIC_SUPABASE_KEY; NOTED_AUTH_REDIRECT_URL='noted://app/auth-callback' } | ConvertTo-Json | Set-Content -LiteralPath .env.supabase.json
+      - name: Set up Java 17 for Android
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Build signed universal beta APK
-        run: flutter build apk --release --dart-define-from-file=.env.supabase.json --dart-define=NOTED_UPDATE_CHANNEL=beta --build-name $env:RELEASE_VERSION --build-number $env:RELEASE_BUILD
+        run: |
+          flutter config --jdk-dir "$env:JAVA_HOME"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter build apk --release --dart-define-from-file=.env.supabase.json --dart-define=NOTED_UPDATE_CHANNEL=beta --build-name $env:RELEASE_VERSION --build-number $env:RELEASE_BUILD
       - name: Verify artifact, upload, read back and publish last
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
