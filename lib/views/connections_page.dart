@@ -85,15 +85,24 @@ class _ConnectionsPageState extends State<ConnectionsPage>
     try {
       final vm = context.read<ConnectionViewModel>();
       final ok = await vm.invite(email);
-      if (!ok) throw StateError(vm.errorMessage ?? 'Couldn’t send invitation.');
+      if (!ok) {
+        if (mounted) {
+          setState(
+              () => _error = vm.errorMessage ?? 'Couldn’t send invitation.');
+        }
+        return;
+      }
       if (mounted) {
         _email.clear();
         notedToast(context, 'Invitation sent');
       }
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Couldn’t send invitation. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
-    if (mounted) setState(() => _sending = false);
   }
 
   Future<void> _action(Future<bool> Function() action, String success) async {
@@ -133,7 +142,9 @@ class _ConnectionsPageState extends State<ConnectionsPage>
                             onPressed: () => Navigator.pop(context, true),
                             style: FilledButton.styleFrom(
                                 backgroundColor:
-                                    Theme.of(context).colorScheme.error),
+                                    Theme.of(context).colorScheme.error,
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.onError),
                             child: const Text('Remove')))
                   ])
                 ])));
@@ -168,7 +179,7 @@ class _ConnectionsPageState extends State<ConnectionsPage>
                           if (!_sending) _invite();
                         },
                         decoration: const InputDecoration(
-                            hintText: 'Invite by email',
+                            labelText: 'Invite by email',
                             prefixIcon: Padding(
                                 padding: EdgeInsets.all(14),
                                 child: ReferenceIcon('mail', size: 18))))),
@@ -403,7 +414,7 @@ class _EmailInvitationsState extends State<_EmailInvitations> {
                               }
                             } catch (error) {
                               if (context.mounted) {
-                                notedToast(context, 'Couldn’t resend. $error');
+                                notedToast(context, 'Couldn’t resend.');
                               }
                             }
                           },
@@ -420,7 +431,7 @@ class _EmailInvitationsState extends State<_EmailInvitations> {
                               }
                             } catch (error) {
                               if (context.mounted) {
-                                notedToast(context, 'Couldn’t cancel. $error');
+                                notedToast(context, 'Couldn’t cancel.');
                               }
                             }
                           },

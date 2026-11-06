@@ -49,6 +49,36 @@ void main() {
         contains('type="checkbox" disabled checked'));
     expect(DocumentCodec.toHtml(value), contains('text-align:center'));
   });
+  test('HTML export groups lists and labels checklist items', () {
+    final value = jsonEncode({
+      'notedDocument': 1,
+      'ops': [
+        for (final (text, list) in [
+          ('First', 'ordered'),
+          ('Second', 'ordered'),
+          ('Paragraph', null),
+          ('Third', 'bullet'),
+          ('Fourth', 'bullet'),
+          ('Done', 'checked'),
+        ]) ...[
+          {'insert': text},
+          {
+            'insert': '\n',
+            if (list != null) 'attributes': {'list': list}
+          },
+        ],
+      ],
+    });
+    final html = DocumentCodec.toHtml(value);
+    expect(html, contains('<ol><li>First</li><li>Second</li></ol>'));
+    expect(html, contains('<p>Paragraph</p>'));
+    expect(html, contains('<ul><li>Third</li><li>Fourth</li></ul>'));
+    expect(
+        html,
+        contains(
+            '<label><input type="checkbox" disabled checked> Done</label>'));
+  });
+
   test('HTML export keeps inline private image references', () {
     const value =
         '{"notedDocument":1,"ops":[{"insert":"Before "},{"insert":{"image":"noted-media://note-media/users/u/notes/n/photo.png"}},{"insert":" after\\n"},{"insert":"<unsafe>"},{"insert":"\\n"}]}';

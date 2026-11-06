@@ -204,11 +204,7 @@ void main() {
       child: MaterialApp(theme: AppTheme.light, home: AiPage(repository: repo)),
     ));
     expect(find.text('Ask Noted'), findsWidgets);
-    expect(
-        tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'This note'))
-            .onSelected,
-        isNull);
+    expect(find.widgetWithText(ChoiceChip, 'This note'), findsNothing);
     expect(find.text('Summarize notes'), findsOneWidget);
     expect(find.text('Extract action tasks'), findsOneWidget);
     expect(find.text('Identify key decisions'), findsOneWidget);

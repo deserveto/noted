@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/reference_icon.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/auth_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
@@ -58,7 +59,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
           AppLockService().authenticate());
       if (mounted) setState(() => _locked = !unlocked);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = 'Couldn’t unlock Noted. Try again.');
     }
     if (mounted) setState(() => _authenticating = false);
   }
@@ -88,7 +89,9 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       if (obscured)
         Scaffold(
             body: loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        semanticsLabel: 'Checking app lock'))
                 : SafeArea(
                     child: Center(
                         child: Padding(
@@ -98,7 +101,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
                                 children: [
                                   Image.asset('docs/Logo.png', height: 64),
                                   const SizedBox(height: 24),
-                                  const Icon(Icons.lock_outline, size: 36),
+                                  const ReferenceIcon('lock', size: 36),
                                   const SizedBox(height: 16),
                                   const Text('Your notes are locked',
                                       style: TextStyle(

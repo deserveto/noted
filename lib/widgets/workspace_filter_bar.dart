@@ -48,12 +48,10 @@ class WorkspaceFilterBar extends StatelessWidget {
                     key: const ValueKey('workspace-filter-button'),
                     onPressed: () => _showChoices(context),
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 56),
+                      minimumSize: const Size(44, 44),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       alignment: Alignment.centerLeft,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      shape: const StadiumBorder(),
                       side: BorderSide(color: theme.dividerColor),
                     ),
                     child: Row(
@@ -61,28 +59,11 @@ class WorkspaceFilterBar extends StatelessWidget {
                         const ReferenceIcon('layers', size: 18),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'WORKSPACE',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  letterSpacing: .8,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                selectionLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            selectionLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -209,7 +190,7 @@ class WorkspaceFilterBar extends StatelessWidget {
             const Divider(height: 24),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.settings_outlined),
+              leading: const ReferenceIcon('gear'),
               title: const Text('Manage workspaces'),
               onTap: () async {
                 final navigator = Navigator.of(context);
@@ -263,7 +244,7 @@ class _WorkspaceChoice extends StatelessWidget {
           ),
         ),
         trailing: selected
-            ? Icon(Icons.check, color: theme.colorScheme.primary)
+            ? ReferenceIcon('check', color: theme.colorScheme.primary)
             : null,
         onTap: enabled ? onTap : null,
       ),

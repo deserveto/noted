@@ -9,10 +9,13 @@ import '../services/collaboration_service.dart';
 import '../viewmodels/connection_viewmodel.dart';
 import '../viewmodels/settings_viewmodel.dart';
 import 'reference_icon.dart';
-import 'noted_ui.dart' show NotedAvatar;
+import 'noted_ui.dart' show NotedAvatar, notedToast;
 
 class NoteShareSheet extends StatefulWidget {
-  const NoteShareSheet({required this.note, super.key});
+  const NoteShareSheet(
+      {required this.note, this.repository, this.collaboration, super.key});
+  final NoteRepository? repository;
+  final CollaborationService? collaboration;
   final NoteModel note;
   @override
   State<NoteShareSheet> createState() => _NoteShareSheetState();
@@ -38,7 +41,7 @@ class _NoteShareSheetState extends State<NoteShareSheet> {
     });
     try {
       if (_live) {
-        final service = CollaborationService();
+        final service = widget.collaboration ?? CollaborationService();
         for (final id in {...widget.note.liveRoles.keys, ..._roles.keys}) {
           if (widget.note.liveRoles[id] != _roles[id]) {
             await service.setLiveRole(
@@ -46,7 +49,7 @@ class _NoteShareSheetState extends State<NoteShareSheet> {
           }
         }
       } else {
-        final repo = NoteRepository();
+        final repo = widget.repository ?? NoteRepository();
         for (final id in _copies) {
           await repo.shareNote(
               note: widget.note,
@@ -61,7 +64,9 @@ class _NoteShareSheetState extends State<NoteShareSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = _live
+              ? 'Couldn’t save sharing changes. Reopen sharing to check access.'
+              : 'Couldn’t finish sending copies. Check who received a copy before retrying.';
           _busy = false;
         });
       }
@@ -174,7 +179,8 @@ class _NoteShareSheetState extends State<NoteShareSheet> {
                       ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Former connection'),
-                          subtitle: Text(id),
+                          subtitle: const Text(
+                              'Access retained from an earlier connection'),
                           trailing: TextButton(
                               onPressed: _busy
                                   ? null
@@ -194,9 +200,7 @@ class _NoteShareSheetState extends State<NoteShareSheet> {
                               await Clipboard.setData(ClipboardData(
                                   text: noteInviteLink(widget.note.noteId)));
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('Link copied')));
+                                notedToast(context, 'Link copied');
                               }
                             },
                       icon: const ReferenceIcon('link', size: 18),

@@ -193,7 +193,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
       _richBaseline = DocumentCodec.encode(_rich.document);
       _documentError = null;
     } catch (error) {
-      _documentError = 'This document could not be opened safely: $error';
+      _documentError = 'This document could not be opened safely.';
     } finally {
       _rich.ignoreFocusOnTextChange = wasIgnoringFocus;
       _loadingText = false;
@@ -355,7 +355,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
           _imageMove = null;
           _imageMoveTarget = null;
           _imageMoveBusy = false;
-          _error = 'Could not move image: $e';
+          _error = 'Could not move image.';
         });
       }
     } finally {
@@ -446,7 +446,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         setState(() {
           _note = _note!.copyWith(isFavorite: before.isFavorite);
           _baseNote = _baseNote!.copyWith(isFavorite: before.isFavorite);
-          _error = 'Could not update favorite: $e';
+          _error = 'Could not update favorite.';
         });
       }
     }
@@ -495,7 +495,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         });
       }
     }, onError: (Object e) {
-      if (mounted) setState(() => _error = 'Sync unavailable: $e');
+      if (mounted) setState(() => _error = 'Sync unavailable.');
     });
     _presenceTimer?.cancel();
     _sendPresence();
@@ -626,7 +626,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = 'Could not save: $e';
+          _error = 'Could not save.';
         });
       }
       return false;
@@ -778,294 +778,407 @@ class _AddEditNotePageState extends State<AddEditNotePage>
             ],
           ),
           body: SafeArea(
-              child: Column(children: [
-            if (_error != null)
-              Material(
-                  color: scheme.errorContainer,
-                  child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Row(children: [
+              child: Center(
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 700),
+                      child: Column(children: [
+                        if (_error != null)
+                          Material(
+                              color: scheme.errorContainer,
+                              child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  child: Row(children: [
+                                    Expanded(
+                                        child: Text(_error!,
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    scheme.onErrorContainer))),
+                                    TextButton(
+                                        onPressed: _conflict != null
+                                            ? _reviewConflict
+                                            : _save,
+                                        child: Text(_conflict != null
+                                            ? 'Review'
+                                            : 'Retry'))
+                                  ]))),
+                        if (_uploading) const LinearProgressIndicator(),
+                        if (_imageMove != null) _imageMoveBanner(scheme),
                         Expanded(
-                            child: Text(_error!,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: scheme.onErrorContainer))),
-                        TextButton(
-                            onPressed:
-                                _conflict != null ? _reviewConflict : _save,
-                            child: Text(_conflict != null ? 'Review' : 'Retry'))
-                      ]))),
-            if (_uploading) const LinearProgressIndicator(),
-            if (_imageMove != null) _imageMoveBanner(scheme),
-            Expanded(
-                child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!_focusMode)
-                            Wrap(
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                children: [
-                                  ActionChip(
-                                      backgroundColor:
-                                          scheme.surfaceContainerHighest,
-                                      side: BorderSide.none,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
-                                      avatar: CircleAvatar(
-                                          radius: 5,
-                                          backgroundColor:
-                                              _noteColor(note.color)),
-                                      label: Text(note.category,
-                                          style: TextStyle(
-                                              fontSize: 13,
-                                              color: scheme.onSurface)),
-                                      onPressed: _editable ? _category : null),
-                                  if (note.noteId.isNotEmpty)
-                                    ActionChip(
-                                        label: const Text('Workspace'),
-                                        onPressed: () async {
-                                          final workspace = await pickWorkspace(
-                                              context,
-                                              noteId: note.noteId);
-                                          if (workspace == null) return;
-                                          try {
-                                            await WorkspaceRepository()
-                                                .assign(note.noteId, workspace);
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(const SnackBar(
-                                                      content: Text(
-                                                          'Workspace updated')));
-                                            }
-                                          } catch (_) {
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(const SnackBar(
-                                                      content: Text(
-                                                          'Could not update workspace.')));
-                                            }
-                                          }
-                                        }),
-                                  TextButton(
-                                      onPressed: _editable ? _date : null,
-                                      child: Text(
-                                          DateFormat('MMM d, yyyy')
-                                              .format(note.createdAt),
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: scheme.onSurfaceVariant))),
-                                  if (settings.wordCount)
-                                    Text('$words words',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: scheme.onSurfaceVariant)),
-                                  if (note.isLive) LiveMetadata(note: note),
-                                ]),
-                          const SizedBox(height: 10),
-                          Semantics(
-                              label: 'Note title',
-                              textField: true,
-                              child: TextField(
-                                  controller: _title,
-                                  focusNode: _titleFocus,
-                                  readOnly: !_editable,
-                                  autocorrect: settings.spellcheck,
-                                  enableSuggestions: settings.spellcheck,
-                                  maxLines: null,
-                                  textInputAction: TextInputAction.next,
-                                  onSubmitted: (_) => _bodyFocus.requestFocus(),
-                                  style: const TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: -.75,
-                                      height: 1.2),
-                                  decoration: const InputDecoration(
-                                      hintText: 'Untitled',
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      filled: false,
-                                      contentPadding: EdgeInsets.zero))),
-                          const SizedBox(height: 20),
-                          if (_documentError != null)
-                            Text(_documentError!,
-                                style: TextStyle(color: scheme.error))
-                          else
-                            Semantics(
-                              label: 'Note content',
-                              multiline: true,
-                              textField: true,
-                              child: quill.QuillEditor.basic(
-                                controller: _rich,
-                                focusNode: _bodyFocus,
-                                scrollController: _richScroll,
-                                config: quill.QuillEditorConfig(
-                                  editorKey: _editorKey,
-                                  embedBuilders: [
-                                    RichNoteEmbed(
-                                      onMove: _editable
-                                          ? _startInlineImageMove
-                                          : null,
-                                    )
-                                  ],
-                                  unknownEmbedBuilder: RichNoteEmbed(
-                                    onMove: _editable
-                                        ? _startInlineImageMove
-                                        : null,
-                                  ),
-                                  scrollable: false,
-                                  autoFocus: false,
-                                  placeholder: 'Start writing…',
-                                  padding: EdgeInsets.zero,
-                                  expands: false,
-                                  minHeight: 220,
-                                  enableInteractiveSelection: true,
-                                  enableSelectionToolbar: true,
-                                  customStyles: quill.DefaultStyles(
-                                    h3: quill.DefaultTextBlockStyle(
-                                        TextStyle(
-                                            fontFamily: 'DM Sans',
-                                            fontSize: 19,
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: -.19,
-                                            color: scheme.onSurface),
-                                        const quill.HorizontalSpacing(0, 0),
-                                        const quill.VerticalSpacing(0, 9),
-                                        const quill.VerticalSpacing(0, 0),
-                                        null),
-                                    quote: quill.DefaultTextBlockStyle(
-                                        TextStyle(
-                                            fontFamily: 'Newsreader',
-                                            fontStyle: FontStyle.italic,
-                                            fontSize: 19,
-                                            height: 1.7,
-                                            color: scheme.onSurfaceVariant),
-                                        const quill.HorizontalSpacing(14, 0),
-                                        const quill.VerticalSpacing(0, 9),
-                                        const quill.VerticalSpacing(0, 0),
-                                        BoxDecoration(
-                                            border: Border(
-                                                left: BorderSide(
-                                                    color: scheme.primary,
-                                                    width: 3)))),
-                                    paragraph: quill.DefaultTextBlockStyle(
-                                        TextStyle(
-                                            fontFamily: 'DM Sans',
-                                            fontSize: settings.textSize,
-                                            height: 1.7,
-                                            color: scheme.onSurface),
-                                        const quill.HorizontalSpacing(0, 0),
-                                        const quill.VerticalSpacing(0, 9),
-                                        const quill.VerticalSpacing(0, 0),
-                                        null),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          for (final attachment in _visibleAttachments(note))
-                            NoteAttachment(
-                                key: ValueKey(NoteImageDocument.attachmentKey(
-                                    attachment)),
-                                attachment: attachment,
-                                onRemove: _editable
-                                    ? () {
-                                        final key =
-                                            NoteImageDocument.attachmentKey(
-                                                attachment);
-                                        final items = note.attachments
-                                            .where((item) =>
+                            child: SingleChildScrollView(
+                                padding:
+                                    const EdgeInsets.fromLTRB(24, 4, 24, 28),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (!_focusMode)
+                                        Wrap(
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            spacing: 8,
+                                            children: [
+                                              ActionChip(
+                                                  backgroundColor: scheme
+                                                      .surfaceContainerHighest,
+                                                  side: BorderSide.none,
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8)),
+                                                  avatar: CircleAvatar(
+                                                      radius: 5,
+                                                      backgroundColor:
+                                                          _noteColor(
+                                                              note.color)),
+                                                  label: Text(note.category,
+                                                      style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: scheme
+                                                              .onSurface)),
+                                                  onPressed: _editable
+                                                      ? _category
+                                                      : null),
+                                              if (note.noteId.isNotEmpty)
+                                                ActionChip(
+                                                    label:
+                                                        const Text('Workspace'),
+                                                    onPressed: () async {
+                                                      final workspace =
+                                                          await pickWorkspace(
+                                                              context,
+                                                              noteId:
+                                                                  note.noteId);
+                                                      if (workspace == null) {
+                                                        return;
+                                                      }
+                                                      try {
+                                                        await WorkspaceRepository()
+                                                            .assign(note.noteId,
+                                                                workspace);
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                                  const SnackBar(
+                                                                      content: Text(
+                                                                          'Workspace updated')));
+                                                        }
+                                                      } catch (_) {
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                                  const SnackBar(
+                                                                      content: Text(
+                                                                          'Could not update workspace.')));
+                                                        }
+                                                      }
+                                                    }),
+                                              TextButton(
+                                                  onPressed:
+                                                      _editable ? _date : null,
+                                                  child: Text(
+                                                      DateFormat('MMM d, yyyy')
+                                                          .format(
+                                                              note.createdAt),
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: scheme
+                                                              .onSurfaceVariant))),
+                                              if (settings.wordCount)
+                                                Text('$words words',
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: scheme
+                                                            .onSurfaceVariant)),
+                                              if (note.isLive)
+                                                LiveMetadata(note: note),
+                                            ]),
+                                      const SizedBox(height: 10),
+                                      Semantics(
+                                          label: 'Note title',
+                                          textField: true,
+                                          child: TextField(
+                                              controller: _title,
+                                              focusNode: _titleFocus,
+                                              readOnly: !_editable,
+                                              autocorrect: settings.spellcheck,
+                                              enableSuggestions:
+                                                  settings.spellcheck,
+                                              maxLines: null,
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              onSubmitted: (_) =>
+                                                  _bodyFocus.requestFocus(),
+                                              style: const TextStyle(
+                                                  fontSize: 30,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: -.75,
+                                                  height: 1.2),
+                                              decoration: const InputDecoration(
+                                                  hintText: 'Untitled',
+                                                  border: InputBorder.none,
+                                                  enabledBorder:
+                                                      InputBorder.none,
+                                                  focusedBorder:
+                                                      InputBorder.none,
+                                                  filled: false,
+                                                  contentPadding:
+                                                      EdgeInsets.zero))),
+                                      const SizedBox(height: 20),
+                                      if (_documentError != null)
+                                        Text(_documentError!,
+                                            style:
+                                                TextStyle(color: scheme.error))
+                                      else
+                                        Semantics(
+                                          label: 'Note content',
+                                          multiline: true,
+                                          textField: true,
+                                          child: quill.QuillEditor.basic(
+                                            controller: _rich,
+                                            focusNode: _bodyFocus,
+                                            scrollController: _richScroll,
+                                            config: quill.QuillEditorConfig(
+                                              editorKey: _editorKey,
+                                              embedBuilders: [
+                                                RichNoteEmbed(
+                                                  onMove: _editable
+                                                      ? _startInlineImageMove
+                                                      : null,
+                                                )
+                                              ],
+                                              unknownEmbedBuilder:
+                                                  RichNoteEmbed(
+                                                onMove: _editable
+                                                    ? _startInlineImageMove
+                                                    : null,
+                                              ),
+                                              scrollable: false,
+                                              autoFocus: false,
+                                              placeholder: 'Start writing…',
+                                              padding: EdgeInsets.zero,
+                                              expands: false,
+                                              minHeight: 220,
+                                              enableInteractiveSelection: true,
+                                              enableSelectionToolbar: true,
+                                              // Keep Quill’s line-aware toggle and read-only state.
+                                              // ignore: experimental_member_use
+                                              customLeadingBlockBuilder:
+                                                  (line, leading) {
+                                                if (leading.attribute !=
+                                                        quill.Attribute
+                                                            .checked &&
+                                                    leading.attribute !=
+                                                        quill.Attribute
+                                                            .unchecked) {
+                                                  return null;
+                                                }
+                                                return Checkbox(
+                                                  value: leading.value,
+                                                  onChanged: leading.enabled ==
+                                                          true
+                                                      ? (checked) =>
+                                                          leading.onCheckboxTap(
+                                                              checked!)
+                                                      : null,
+                                                );
+                                              },
+                                              customStyles: quill.DefaultStyles(
+                                                h3: quill.DefaultTextBlockStyle(
+                                                    TextStyle(
+                                                        fontFamily: 'DM Sans',
+                                                        fontSize: 19,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        letterSpacing: -.19,
+                                                        color:
+                                                            scheme.onSurface),
+                                                    const quill
+                                                        .HorizontalSpacing(
+                                                        0, 0),
+                                                    const quill.VerticalSpacing(
+                                                        0, 9),
+                                                    const quill.VerticalSpacing(
+                                                        0, 0),
+                                                    null),
+                                                quote: quill.DefaultTextBlockStyle(
+                                                    TextStyle(
+                                                        fontFamily:
+                                                            'Newsreader',
+                                                        fontStyle:
+                                                            FontStyle.italic,
+                                                        fontSize: 19,
+                                                        height: 1.7,
+                                                        color: scheme
+                                                            .onSurfaceVariant),
+                                                    const quill
+                                                        .HorizontalSpacing(
+                                                        14, 0),
+                                                    const quill
+                                                        .VerticalSpacing(0, 9),
+                                                    const quill.VerticalSpacing(
+                                                        0,
+                                                        0),
+                                                    BoxDecoration(
+                                                        border: Border(
+                                                            left: BorderSide(
+                                                                color: scheme
+                                                                    .primary,
+                                                                width: 3)))),
+                                                paragraph:
+                                                    quill.DefaultTextBlockStyle(
+                                                        TextStyle(
+                                                            fontFamily:
+                                                                'DM Sans',
+                                                            fontSize: settings
+                                                                .textSize,
+                                                            height: 1.7,
+                                                            color: scheme
+                                                                .onSurface),
+                                                        const quill
+                                                            .HorizontalSpacing(
+                                                            0, 0),
+                                                        const quill
+                                                            .VerticalSpacing(
+                                                            0, 9),
+                                                        const quill
+                                                            .VerticalSpacing(
+                                                            0, 0),
+                                                        null),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      for (final attachment
+                                          in _visibleAttachments(note))
+                                        NoteAttachment(
+                                            key: ValueKey(
                                                 NoteImageDocument.attachmentKey(
-                                                    item) !=
-                                                key)
-                                            .toList();
-                                        _changeNote(
-                                            note.copyWith(attachments: items));
-                                      }
-                                    : null,
-                                onMove: _editable &&
-                                        (attachment['type'] == 'image' ||
-                                            attachment['type'] == 'doodle')
-                                    ? () => _startTrailingImageMove(attachment)
-                                    : null),
-                          if (note.isLive)
-                            StreamBuilder<List<Map<String, dynamic>>>(
-                                stream: _repository.watchPresence(note.noteId),
-                                builder: (context, snapshot) {
-                                  final people = (snapshot.data ?? [])
-                                      .where((p) => p['userId'] != _uid)
-                                      .toList();
-                                  if (people.isEmpty) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Text(
-                                      people
-                                          .map((p) =>
-                                              '${p['name']}${p['typing'] == true ? ' is typing…' : ' is here'}')
-                                          .join(' · '),
-                                      style: TextStyle(
-                                          fontSize: 12, color: scheme.primary));
-                                }),
-                        ]))),
-            if (!_focusMode)
-              Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        if (_editable && writing)
-                          Expanded(
-                              child: _format
-                                  ? RichFormattingToolbar(
-                                      controller: _rich,
-                                      focusNode: _bodyFocus,
-                                      onClose: () =>
-                                          setState(() => _format = false))
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                          color: scheme.surface,
-                                          border: Border.all(
-                                              color: Theme.of(context)
-                                                  .dividerColor),
-                                          borderRadius:
-                                              BorderRadius.circular(28)),
-                                      child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceEvenly,
-                                          children: [
-                                            _tool('Record audio', 'mic',
-                                                () => _attach('audio')),
-                                            _tool('Add image', 'image',
-                                                () => _attach('image')),
-                                            _tool('Doodle', 'pen',
-                                                () => _attach('doodle')),
-                                            _tool('Checklist', 'todo',
-                                                _checklist),
-                                            _tool('Formatting', 'type', () {
-                                              _bodyFocus.requestFocus();
-                                              setState(() => _format = true);
+                                                    attachment)),
+                                            attachment: attachment,
+                                            onRemove: _editable
+                                                ? () {
+                                                    final key =
+                                                        NoteImageDocument
+                                                            .attachmentKey(
+                                                                attachment);
+                                                    final items = note
+                                                        .attachments
+                                                        .where((item) =>
+                                                            NoteImageDocument
+                                                                .attachmentKey(
+                                                                    item) !=
+                                                            key)
+                                                        .toList();
+                                                    _changeNote(note.copyWith(
+                                                        attachments: items));
+                                                  }
+                                                : null,
+                                            onMove: _editable &&
+                                                    (attachment['type'] ==
+                                                            'image' ||
+                                                        attachment['type'] ==
+                                                            'doodle')
+                                                ? () => _startTrailingImageMove(
+                                                    attachment)
+                                                : null),
+                                      if (note.isLive)
+                                        StreamBuilder<
+                                                List<Map<String, dynamic>>>(
+                                            stream: _repository
+                                                .watchPresence(note.noteId),
+                                            builder: (context, snapshot) {
+                                              final people =
+                                                  (snapshot.data ?? [])
+                                                      .where((p) =>
+                                                          p['userId'] != _uid)
+                                                      .toList();
+                                              if (people.isEmpty) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return Text(
+                                                  people
+                                                      .map((p) =>
+                                                          '${p['name']}${p['typing'] == true ? ' is typing…' : ' is here'}')
+                                                      .join(' · '),
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: scheme.primary));
                                             }),
-                                          ]))),
-                        if (!writing || !_editable) const Spacer(),
-                        if (settings.aiEnabled) ...[
-                          const SizedBox(width: 8),
-                          IconButton.filled(
-                              tooltip: 'Ask Noted AI',
-                              onPressed: _ai,
-                              style: IconButton.styleFrom(
-                                  backgroundColor: scheme.onSurface,
-                                  foregroundColor:
-                                      Theme.of(context).scaffoldBackgroundColor,
-                                  minimumSize: const Size(48, 48),
-                                  shape: const CircleBorder()),
-                              icon: const ReferenceIcon('spark'))
-                        ],
-                      ])),
-          ])),
+                                    ]))),
+                        if (!_focusMode)
+                          Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    if (_editable && writing)
+                                      Expanded(
+                                          child: _format
+                                              ? RichFormattingToolbar(
+                                                  controller: _rich,
+                                                  focusNode: _bodyFocus,
+                                                  onClose: () => setState(
+                                                      () => _format = false))
+                                              : Container(
+                                                  decoration: BoxDecoration(
+                                                      color: scheme.surface,
+                                                      border: Border.all(
+                                                          color: Theme.of(
+                                                                  context)
+                                                              .dividerColor),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              28)),
+                                                  child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceEvenly,
+                                                      children: [
+                                                        _tool(
+                                                            'Record audio',
+                                                            'mic',
+                                                            () => _attach(
+                                                                'audio')),
+                                                        _tool(
+                                                            'Add image',
+                                                            'image',
+                                                            () => _attach(
+                                                                'image')),
+                                                        _tool(
+                                                            'Doodle',
+                                                            'pen',
+                                                            () => _attach(
+                                                                'doodle')),
+                                                        _tool('Checklist',
+                                                            'todo', _checklist),
+                                                        _tool('Formatting',
+                                                            'type', () {
+                                                          _bodyFocus
+                                                              .requestFocus();
+                                                          setState(() =>
+                                                              _format = true);
+                                                        }),
+                                                      ]))),
+                                    if (!writing || !_editable) const Spacer(),
+                                    if (settings.aiEnabled) ...[
+                                      const SizedBox(width: 8),
+                                      IconButton.filled(
+                                          tooltip: 'Ask Noted AI',
+                                          onPressed: _ai,
+                                          style: IconButton.styleFrom(
+                                              backgroundColor: scheme.onSurface,
+                                              foregroundColor: Theme.of(context)
+                                                  .scaffoldBackgroundColor,
+                                              minimumSize: const Size(48, 48),
+                                              shape: const CircleBorder()),
+                                          icon: const ReferenceIcon('spark'))
+                                    ],
+                                  ])),
+                      ])))),
         ));
   }
 
@@ -1132,7 +1245,11 @@ class _AddEditNotePageState extends State<AddEditNotePage>
   }
 
   Future<void> _category() async {
-    final categories = context.read<NoteViewModel>().categories;
+    final categories = {
+      _note!.category,
+      ...context.read<NoteViewModel>().categories,
+    }.toList()
+      ..sort();
     final controller = TextEditingController();
     final value = await showModalBottomSheet<String>(
         context: context,
@@ -1151,16 +1268,16 @@ class _AddEditNotePageState extends State<AddEditNotePage>
                               fontSize: 20, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 16),
                       Wrap(spacing: 8, children: [
-                        for (final key in const [
-                          'blue',
-                          'pink',
-                          'mint',
-                          'yellow',
-                          'peach',
-                          'lav'
+                        for (final (key, label) in const [
+                          ('blue', 'Blue note'),
+                          ('pink', 'Pink note'),
+                          ('mint', 'Mint note'),
+                          ('yellow', 'Yellow note'),
+                          ('peach', 'Peach note'),
+                          ('lav', 'Lavender note'),
                         ])
                           IconButton(
-                              tooltip: '$key note',
+                              tooltip: label,
                               onPressed: () {
                                 _changeNote(_note!.copyWith(color: key));
                                 Navigator.pop(ctx);
@@ -1471,7 +1588,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         await _save();
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not add attachment: $e');
+      if (mounted) setState(() => _error = 'Could not add attachment.');
     } finally {
       if (identical(_imageInsertionAnchor, anchor)) {
         _imageInsertionAnchor = null;
@@ -1527,7 +1644,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
               .showSnackBar(const SnackBar(content: Text('Note duplicated')));
         }
       } catch (e) {
-        if (mounted) setState(() => _error = 'Could not duplicate: $e');
+        if (mounted) setState(() => _error = 'Could not duplicate.');
       }
       return;
     }
@@ -1574,7 +1691,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
               } catch (error) {
                 if (messenger.mounted) {
                   messenger.showSnackBar(
-                      SnackBar(content: Text('Could not restore: $error')));
+                      const SnackBar(content: Text('Could not restore.')));
                 }
               }
             });
@@ -1584,7 +1701,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         if (mounted) {
           setState(() {
             _deleting = false;
-            _error = 'Could not delete: $e';
+            _error = 'Could not delete.';
           });
         }
       }
@@ -1640,7 +1757,7 @@ class _AddEditNotePageState extends State<AddEditNotePage>
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not recover changes: $e');
+      if (mounted) setState(() => _error = 'Could not recover changes.');
     }
   }
 }

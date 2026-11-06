@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/noted_ui.dart';
+import '../widgets/reference_icon.dart';
 import '../models/workspace_model.dart';
 import '../repositories/workspace_repository.dart';
 
@@ -17,7 +19,7 @@ Future<String?> pickWorkspace(BuildContext context, {String? noteId}) async {
               ListTile(
                   title: const Text('Default'),
                   trailing: current == WorkspaceSelection.defaultWorkspaceId
-                      ? const Icon(Icons.check)
+                      ? const ReferenceIcon('check')
                       : null,
                   onTap: () => Navigator.pop(
                       ctx, WorkspaceSelection.defaultWorkspaceId)),
@@ -25,11 +27,11 @@ Future<String?> pickWorkspace(BuildContext context, {String? noteId}) async {
                 ListTile(
                     title: Text(workspace.name),
                     trailing: current == workspace.id
-                        ? const Icon(Icons.check)
+                        ? const ReferenceIcon('check')
                         : null,
                     onTap: () => Navigator.pop(ctx, workspace.id)),
               ListTile(
-                  leading: const Icon(Icons.settings_outlined),
+                  leading: const ReferenceIcon('gear'),
                   title: const Text('Manage workspaces'),
                   onTap: () async {
                     Navigator.pop(ctx);
@@ -41,8 +43,7 @@ Future<String?> pickWorkspace(BuildContext context, {String? noteId}) async {
             ])));
   } catch (_) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Could not load workspaces. Check your connection.')));
+      notedToast(context, 'Could not load workspaces. Check your connection.');
     }
     return null;
   }
@@ -74,7 +75,11 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
                 title:
                     Text(item == null ? 'New workspace' : 'Rename workspace'),
                 content: TextField(
-                    controller: controller, autofocus: true, maxLength: 100),
+                    decoration:
+                        const InputDecoration(labelText: 'Workspace name'),
+                    controller: controller,
+                    autofocus: true,
+                    maxLength: 100),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -96,8 +101,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
       if (mounted) setState(_refresh);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not save workspace.')));
+        notedToast(context, 'Could not save workspace.');
       }
     }
   }
@@ -122,8 +126,7 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
       if (mounted) setState(_refresh);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not delete workspace.')));
+        notedToast(context, 'Could not delete workspace.');
       }
     }
   }
@@ -134,37 +137,44 @@ class _WorkspacesPageState extends State<WorkspacesPage> {
         IconButton(
             tooltip: 'New workspace',
             onPressed: _edit,
-            icon: const Icon(Icons.add))
+            icon: const ReferenceIcon('plus'))
       ]),
-      body: FutureBuilder<List<PersonalWorkspace>>(
-          future: _items,
-          builder: (ctx, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                  child: TextButton(
-                      onPressed: () => setState(_refresh),
-                      child:
-                          const Text('Could not load workspaces. Try again')));
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return ListView(children: [
-              const ListTile(
-                  title: Text('Default'),
-                  subtitle: Text('Notes without another workspace')),
-              for (final item in snapshot.data!)
-                ListTile(
-                    title: Text(item.name),
-                    trailing: PopupMenuButton<String>(
-                        onSelected: (action) =>
-                            action == 'rename' ? _edit(item) : _delete(item),
-                        itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                  value: 'rename', child: Text('Rename')),
-                              PopupMenuItem(
-                                  value: 'delete', child: Text('Delete'))
-                            ]))
-            ]);
-          }));
+      body: Center(
+          child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 700),
+              child: FutureBuilder<List<PersonalWorkspace>>(
+                  future: _items,
+                  builder: (ctx, snapshot) {
+                    if (snapshot.hasError) {
+                      return Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: InlineError('Couldn’t load workspaces.',
+                              onRetry: () => setState(_refresh)));
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(
+                          child: CircularProgressIndicator(
+                              semanticsLabel: 'Loading workspaces'));
+                    }
+                    return ListView(children: [
+                      const ListTile(
+                          title: Text('Default'),
+                          subtitle: Text('Notes without another workspace')),
+                      for (final item in snapshot.data!)
+                        ListTile(
+                            title: Text(item.name),
+                            trailing: PopupMenuButton<String>(
+                                onSelected: (action) => action == 'rename'
+                                    ? _edit(item)
+                                    : _delete(item),
+                                itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                          value: 'rename',
+                                          child: Text('Rename')),
+                                      PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete'))
+                                    ]))
+                    ]);
+                  }))));
 }

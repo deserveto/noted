@@ -13,6 +13,8 @@ class AppTheme {
     final border = dark ? AppColors.darkBorder : AppColors.border;
     final sage = dark ? AppColors.darkPrimary : AppColors.primaryDark;
     final soft = dark ? AppColors.darkSearchFill : AppColors.searchFill;
+    final controlOutline =
+        dark ? AppColors.darkControlOutline : AppColors.controlOutline;
     final scheme = ColorScheme.fromSeed(
         seedColor: sage,
         brightness: brightness,
@@ -20,7 +22,8 @@ class AppTheme {
         onPrimary: dark ? bg : Colors.white,
         secondary: AppColors.secondary,
         onSecondary: AppColors.text,
-        error: AppColors.error,
+        error: dark ? AppColors.darkError : AppColors.error,
+        onError: dark ? bg : Colors.white,
         surface: surface,
         onSurface: text,
         onSurfaceVariant: muted,
@@ -31,8 +34,9 @@ class AppTheme {
         useMaterial3: true,
         brightness: brightness,
         colorScheme: scheme,
-        fontFamily: 'DM Sans');
-    final tt = base.textTheme
+        fontFamily: 'DM Sans',
+        hintColor: muted);
+    final roles = base.textTheme
         .apply(bodyColor: text, displayColor: text)
         .copyWith(
             headlineLarge: TextStyle(
@@ -59,6 +63,26 @@ class AppTheme {
             bodySmall: TextStyle(fontSize: 12, height: 1.4, color: muted),
             labelLarge: TextStyle(
                 fontSize: 15, fontWeight: FontWeight.w500, color: text));
+    TextStyle? optical(TextStyle? style) => style?.copyWith(fontVariations: [
+          FontVariation('opsz', (style.fontSize ?? 15).clamp(9, 40).toDouble()),
+        ]);
+    final tt = roles.copyWith(
+      displayLarge: optical(roles.displayLarge),
+      displayMedium: optical(roles.displayMedium),
+      displaySmall: optical(roles.displaySmall),
+      headlineLarge: optical(roles.headlineLarge),
+      headlineMedium: optical(roles.headlineMedium),
+      headlineSmall: optical(roles.headlineSmall),
+      titleLarge: optical(roles.titleLarge),
+      titleMedium: optical(roles.titleMedium),
+      titleSmall: optical(roles.titleSmall),
+      bodyLarge: optical(roles.bodyLarge),
+      bodyMedium: optical(roles.bodyMedium),
+      bodySmall: optical(roles.bodySmall),
+      labelLarge: optical(roles.labelLarge),
+      labelMedium: optical(roles.labelMedium),
+      labelSmall: optical(roles.labelSmall),
+    );
     OutlineInputBorder ib(Color c, [double w = 1]) => OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: c, width: w));
@@ -115,8 +139,8 @@ class AppTheme {
             border: ib(border),
             enabledBorder: ib(border),
             focusedBorder: ib(sage, 1.5),
-            errorBorder: ib(AppColors.error),
-            focusedErrorBorder: ib(AppColors.error, 1.5),
+            errorBorder: ib(scheme.error),
+            focusedErrorBorder: ib(scheme.error, 1.5),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
         chipTheme: ChipThemeData(
@@ -141,15 +165,61 @@ class AppTheme {
             labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
                 fontFamily: 'DM Sans',
                 fontSize: 11,
-                fontWeight:
-                    s.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: s.contains(WidgetState.selected)
+                    ? FontWeight.w600
+                    : FontWeight.w500,
                 color: s.contains(WidgetState.selected) ? text : muted))),
-        bottomSheetTheme: BottomSheetThemeData(backgroundColor: bg, surfaceTintColor: Colors.transparent, showDragHandle: true, dragHandleColor: border, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
-        dialogTheme: DialogThemeData(backgroundColor: surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+        bottomSheetTheme: BottomSheetThemeData(
+            backgroundColor: bg,
+            surfaceTintColor: Colors.transparent,
+            showDragHandle: true,
+            dragHandleColor: border,
+            shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
+        dialogTheme: DialogThemeData(
+            backgroundColor: surface,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20))),
         dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
-        textSelectionTheme: TextSelectionThemeData(cursorColor: sage, selectionHandleColor: sage, selectionColor: sage.withValues(alpha: .25)),
-        snackBarTheme: SnackBarThemeData(backgroundColor: text, behavior: SnackBarBehavior.floating, contentTextStyle: TextStyle(color: bg, fontFamily: 'DM Sans'), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        textSelectionTheme: TextSelectionThemeData(
+            cursorColor: sage,
+            selectionHandleColor: sage,
+            selectionColor: sage.withValues(alpha: .25)),
+        snackBarTheme: SnackBarThemeData(
+            backgroundColor: text,
+            behavior: SnackBarBehavior.floating,
+            contentTextStyle: TextStyle(color: bg, fontFamily: 'DM Sans'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         progressIndicatorTheme: ProgressIndicatorThemeData(color: sage),
-        switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.all(Colors.white), trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? sage : border), trackOutlineColor: WidgetStateProperty.all(Colors.transparent)));
+        checkboxTheme: CheckboxThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          side: WidgetStateBorderSide.resolveWith((states) => states
+                  .contains(WidgetState.selected)
+              ? BorderSide.none
+              : BorderSide(
+                  color: states.contains(WidgetState.disabled) ? border : muted,
+                  width: 2)),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.disabled)
+                  ? muted
+                  : states.contains(WidgetState.selected)
+                      ? scheme.onPrimary
+                      : muted),
+          trackColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.disabled)
+                  ? soft
+                  : states.contains(WidgetState.selected)
+                      ? sage
+                      : soft),
+          trackOutlineColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.disabled)
+                  ? border
+                  : states.contains(WidgetState.selected)
+                      ? Colors.transparent
+                      : controlOutline),
+        ));
   }
 }

@@ -8,6 +8,42 @@ import 'package:noted/utils/app_routes.dart';
 import 'package:noted/utils/app_theme.dart';
 
 void main() {
+  testWidgets('sample lenses work at 200% text size with motion disabled',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ChangeNotifierProvider(
+      create: (_) => SettingsViewModel(SettingsRepository()),
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: Builder(
+            builder: (context) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: const TextScaler.linear(2),
+                    disableAnimations: true,
+                  ),
+                  child: const WelcomePage(),
+                )),
+      ),
+    ));
+    expect(find.text('Q4 product rollout'), findsOneWidget);
+    for (final (lens, detail) in [
+      ('Workspaces', 'Client delivery'),
+      ('Ask Noted', 'Source: Q4 product rollout'),
+      ('Notes', '1:15 voice note'),
+    ]) {
+      await tester.ensureVisible(find.text(lens));
+      await tester.tap(find.text(lens));
+      await tester.pumpAndSettle();
+      expect(find.text(detail), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.ensureVisible(find.text('Create an account'));
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [360.0, 390.0, 430.0]) {
     for (final dark in [false, true]) {
       testWidgets(

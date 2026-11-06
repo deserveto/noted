@@ -27,6 +27,7 @@ class AiPage extends StatefulWidget {
       this.onInsert,
       this.onInlineEdit,
       this.compact = false,
+      this.embedded = false,
       this.repository});
   final AiRepository? repository;
   final List<String>? initialNoteIds;
@@ -34,7 +35,7 @@ class AiPage extends StatefulWidget {
   final Map<String, dynamic>? initialScope;
   final ValueChanged<String>? onInsert;
   final bool Function(String markdown, bool replace)? onInlineEdit;
-  final bool compact;
+  final bool compact, embedded;
   @override
   State<AiPage> createState() => _AiPageState();
 }
@@ -188,7 +189,7 @@ class _AiPageState extends State<AiPage> {
         setState(() {
           _busy = false;
           _requestId = null;
-          _error = 'Couldn’t reach Noted AI. Please retry. $error';
+          _error = 'Couldn’t reach Noted AI. Please retry.';
         });
       }
     }
@@ -208,8 +209,7 @@ class _AiPageState extends State<AiPage> {
       await _repo.stop(request);
     } catch (error) {
       if (mounted && generation == _generation) {
-        setState(
-            () => _error = 'Couldn’t stop the request. Please retry. $error');
+        setState(() => _error = 'Couldn’t stop the request. Please retry.');
       }
     }
   }
@@ -283,7 +283,7 @@ class _AiPageState extends State<AiPage> {
       }
       if (mounted) setState(() => m['fb'] = selected);
     } catch (error) {
-      if (mounted) notedToast(context, 'Couldn’t save feedback. $error');
+      if (mounted) notedToast(context, 'Couldn’t save feedback.');
     }
   }
 
@@ -306,251 +306,237 @@ class _AiPageState extends State<AiPage> {
                           .read<SettingsViewModel>()
                           .update({'aiEnabled': true})))));
     }
-    return Scaffold(
-        resizeToAvoidBottomInset: !widget.compact,
-        backgroundColor: theme.scaffoldBackgroundColor,
-        body: SafeArea(
-            bottom: widget.compact,
-            child: Column(children: [
-              Padding(
-                  padding: EdgeInsets.fromLTRB(widget.compact ? 20 : 24,
-                      widget.compact ? 0 : 16, 12, 12),
-                  child: Row(children: [
-                    if (!widget.compact && Navigator.of(context).canPop())
-                      IconButton(
-                          tooltip: 'Back',
-                          onPressed: () => Navigator.pop(context),
-                          icon: const ReferenceIcon('back')),
-                    Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.colorScheme.primary),
-                        child: ReferenceIcon('spark',
-                            size: 16, color: theme.colorScheme.onPrimary)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text('Noted AI',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                  fontSize: widget.compact ? 15 : 19)),
-                          if (widget.compact)
-                            Text(_scopeLabel(notes),
-                                style: theme.textTheme.bodySmall)
-                        ])),
-                    if (!widget.compact)
-                      IconButton(
-                          tooltip: 'Study decks',
-                          onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                  builder: (_) => const StudyDecksPage())),
-                          icon: const ReferenceIcon('cards')),
-                    if (_historyEnabled && !widget.compact)
-                      IconButton(
-                          tooltip: 'Chat history',
-                          onPressed: _busy ? null : _history,
-                          icon: const ReferenceIcon('history')),
-                    IconButton(
-                        tooltip: 'New chat',
-                        onPressed: _busy ? null : _newChat,
-                        icon: const ReferenceIcon('plus')),
-                    if (widget.compact)
-                      IconButton(
-                          tooltip: 'Close',
-                          onPressed: () => Navigator.pop(context),
-                          icon: const ReferenceIcon('x'))
-                  ])),
-              Expanded(
-                  child: ListView(
-                      controller: _scroll,
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-                      children: [
-                    if (_messages.isEmpty && !_busy) _welcome(context, notes),
-                    for (final m in _messages)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: m['role'] == 'user'
-                              ? Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Container(
-                                      constraints: BoxConstraints(
-                                          maxWidth:
-                                              MediaQuery.sizeOf(context).width *
-                                                  .75),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 10),
-                                      decoration: BoxDecoration(
-                                          color: theme.colorScheme.onSurface,
-                                          borderRadius: const BorderRadius.only(
-                                              topLeft: Radius.circular(16),
-                                              topRight: Radius.circular(16),
-                                              bottomLeft: Radius.circular(16),
-                                              bottomRight: Radius.circular(5))),
-                                      child: Text(m['text'] as String? ?? '',
-                                          style: TextStyle(
-                                              color:
-                                                  theme.scaffoldBackgroundColor,
-                                              fontSize: 14,
-                                              height: 1.5))))
-                              : m['stopped'] == true
-                                  ? Text('Stopped. Nothing was written.',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                              fontStyle: FontStyle.italic))
-                                  : _answer(context, m, notes)),
-                    if (_busy)
-                      const Padding(
-                          padding: EdgeInsets.only(top: 16),
-                          child: SurfacePanel(
-                              child: Row(children: [
-                            SizedBox(
-                                width: 16,
-                                height: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2)),
-                            SizedBox(width: 12),
+    final content = SafeArea(
+        bottom: widget.compact,
+        child: Column(children: [
+          Padding(
+              padding: EdgeInsets.fromLTRB(
+                  widget.compact ? 20 : 24, widget.compact ? 0 : 16, 12, 12),
+              child: Row(children: [
+                if (!widget.embedded &&
+                    !widget.compact &&
+                    Navigator.of(context).canPop())
+                  IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const ReferenceIcon('back')),
+                Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.colorScheme.primary),
+                    child: ReferenceIcon('spark',
+                        size: 16, color: theme.colorScheme.onPrimary)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Noted AI',
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontSize: widget.compact ? 15 : 19)),
+                      if (widget.compact)
+                        Text(_scopeLabel(notes),
+                            style: theme.textTheme.bodySmall)
+                    ])),
+                if (!widget.compact)
+                  IconButton(
+                      tooltip: 'Saved decks',
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                              builder: (_) => const StudyDecksPage())),
+                      icon: const ReferenceIcon('cards')),
+                if (_historyEnabled && !widget.compact)
+                  IconButton(
+                      tooltip: 'Chat history',
+                      onPressed: _busy ? null : _history,
+                      icon: const ReferenceIcon('history')),
+                IconButton(
+                    tooltip: 'New chat',
+                    onPressed: _busy ? null : _newChat,
+                    icon: const ReferenceIcon('plus')),
+                if (widget.compact)
+                  IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const ReferenceIcon('x'))
+              ])),
+          Expanded(
+              child: ListView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                  children: [
+                if (_messages.isEmpty && !_busy) _welcome(context, notes),
+                for (final m in _messages)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: m['role'] == 'user'
+                          ? Align(
+                              alignment: Alignment.centerRight,
+                              child: Container(
+                                  constraints: BoxConstraints(
+                                      maxWidth:
+                                          MediaQuery.sizeOf(context).width *
+                                              .75),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 10),
+                                  decoration: BoxDecoration(
+                                      color: theme.colorScheme.onSurface,
+                                      borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(16),
+                                          topRight: Radius.circular(16),
+                                          bottomLeft: Radius.circular(16),
+                                          bottomRight: Radius.circular(5))),
+                                  child: Text(m['text'] as String? ?? '',
+                                      style: TextStyle(
+                                          color: theme.scaffoldBackgroundColor,
+                                          fontSize: 14,
+                                          height: 1.5))))
+                          : m['stopped'] == true
+                              ? Text('Stopped. Nothing was written.',
+                                  style: theme.textTheme.bodySmall
+                                      ?.copyWith(fontStyle: FontStyle.italic))
+                              : _answer(context, m, notes)),
+                if (_busy)
+                  const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: SurfacePanel(
+                          child: Row(children: [
+                        SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                semanticsLabel: 'Waiting for Noted AI')),
+                        SizedBox(width: 12),
+                        Expanded(
+                            child: Text(
+                                'Reading your notes and writing a suggestion…',
+                                style: TextStyle(fontSize: 13)))
+                      ]))),
+                if (_error != null)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: InlineError(_error!,
+                          onRetry: _busy || _lastPrompt == null
+                              ? null
+                              : () => _send(_lastPrompt!,
+                                  retry: true, inline: _lastInline))),
+                if (!_busy &&
+                    _messages
+                        .any((m) => m['role'] == 'ai' && m['stopped'] != true))
+                  Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final p in [
+                          'Summarize this',
+                          'Find related notes'
+                        ])
+                          OutlinedButton(
+                              onPressed: () => _send(p),
+                              style: OutlinedButton.styleFrom(
+                                  shape: const StadiumBorder()),
+                              child:
+                                  Text(p, style: const TextStyle(fontSize: 13)))
+                      ])),
+              ])),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(children: [
+                SurfacePanel(
+                    padding: const EdgeInsets.all(6),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                              controller: _text,
+                              autofocus: false,
+                              keyboardType: TextInputType.multiline,
+                              minLines: 1,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.newline,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                  labelText: widget.compact
+                                      ? 'Ask about this note…'
+                                      : 'Ask about your notes…',
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding:
+                                      const EdgeInsets.fromLTRB(10, 8, 10, 8))),
+                          Row(children: [
                             Expanded(
-                                child: Text(
-                                    'Reading your notes and writing a suggestion…',
-                                    style: TextStyle(fontSize: 13)))
-                          ]))),
-                    if (_error != null)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: InlineError(_error!,
-                              onRetry: _busy || _lastPrompt == null
-                                  ? null
-                                  : () => _send(_lastPrompt!,
-                                      retry: true, inline: _lastInline))),
-                    if (!_busy &&
-                        _messages.any(
-                            (m) => m['role'] == 'ai' && m['stopped'] != true))
-                      Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Wrap(spacing: 8, runSpacing: 8, children: [
-                            for (final p in [
-                              'Summarize this',
-                              'Find related notes'
-                            ])
-                              OutlinedButton(
-                                  onPressed: () => _send(p),
-                                  style: OutlinedButton.styleFrom(
-                                      shape: const StadiumBorder()),
-                                  child: Text(p,
-                                      style: const TextStyle(fontSize: 13)))
-                          ])),
-                  ])),
-              Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: Column(children: [
-                    SurfacePanel(
-                        padding: const EdgeInsets.all(6),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              TextField(
-                                  controller: _text,
-                                  autofocus: false,
-                                  keyboardType: TextInputType.multiline,
-                                  minLines: 1,
-                                  maxLines: 4,
-                                  textInputAction: TextInputAction.newline,
-                                  onChanged: (_) => setState(() {}),
-                                  decoration: InputDecoration(
-                                      hintText: widget.compact
-                                          ? 'Ask about this note…'
-                                          : 'Ask about your notes…',
-                                      filled: false,
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.fromLTRB(
-                                          10, 8, 10, 8))),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 44,
-                                child: Stack(children: [
-                                  Positioned(
-                                      left: 0,
-                                      right: 52,
-                                      child: Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: TextButton(
-                                              onPressed:
-                                                  _busy ? null : _pickScope,
-                                              style: TextButton.styleFrom(
-                                                  backgroundColor: theme
-                                                      .colorScheme
-                                                      .surfaceContainerHighest,
-                                                  foregroundColor: theme
-                                                      .colorScheme.onSurface,
-                                                  padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10),
-                                                  minimumSize:
-                                                      const Size(0, 44),
-                                                  shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(
-                                                          12))),
-                                              child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    const ReferenceIcon('doc',
-                                                        size: 14),
-                                                    const SizedBox(width: 6),
-                                                    Flexible(
-                                                        child: Text(
-                                                            _scopeLabel(notes),
-                                                            maxLines: 1,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style:
-                                                                const TextStyle(
-                                                                    fontSize:
-                                                                        12))),
-                                                    if (_scope['kind'] !=
-                                                        'workspace')
-                                                      Text(
-                                                          ' · ${_pool(notes).length}',
-                                                          style: theme.textTheme
-                                                              .bodySmall)
-                                                  ])))),
-                                  Positioned(
-                                      right: 0,
-                                      child: SizedBox.square(
-                                          dimension: 44,
-                                          child: IconButton.filled(
-                                              tooltip: _busy
-                                                  ? 'Stop generating'
-                                                  : 'Send',
-                                              onPressed: _busy
-                                                  ? _stop
-                                                  : _text.text.trim().isEmpty
-                                                      ? null
-                                                      : () => _send(_text.text),
-                                              style: IconButton.styleFrom(
-                                                  backgroundColor:
-                                                      theme.colorScheme.primary,
-                                                  foregroundColor: theme
-                                                      .colorScheme.onPrimary),
-                                              icon: ReferenceIcon(
-                                                  _busy ? 'stop' : 'arrow',
-                                                  size: 16))))
-                                ]),
-                              )
-                            ])),
-                    const SizedBox(height: 6),
-                    Text('AI can be wrong — check the sources.',
-                        textAlign: TextAlign.center,
-                        style:
-                            theme.textTheme.bodySmall?.copyWith(fontSize: 11))
-                  ])),
-            ])));
+                              child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: TextButton(
+                                      onPressed: _busy ? null : _pickScope,
+                                      style: TextButton.styleFrom(
+                                          backgroundColor: theme.colorScheme
+                                              .surfaceContainerHighest,
+                                          foregroundColor:
+                                              theme.colorScheme.onSurface,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10),
+                                          minimumSize: const Size(0, 44),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12))),
+                                      child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const ReferenceIcon('doc',
+                                                size: 14),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                                child: Text(_scopeLabel(notes),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                        fontSize: 12))),
+                                            if (_scope['kind'] != 'workspace')
+                                              Text(' · ${_pool(notes).length}',
+                                                  style:
+                                                      theme.textTheme.bodySmall)
+                                          ]))),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox.square(
+                                dimension: 44,
+                                child: IconButton.filled(
+                                    tooltip: _busy ? 'Stop generating' : 'Send',
+                                    onPressed: _busy
+                                        ? _stop
+                                        : _text.text.trim().isEmpty
+                                            ? null
+                                            : () => _send(_text.text),
+                                    style: IconButton.styleFrom(
+                                        backgroundColor:
+                                            theme.colorScheme.primary,
+                                        foregroundColor:
+                                            theme.colorScheme.onPrimary),
+                                    icon: ReferenceIcon(
+                                        _busy ? 'stop' : 'arrow',
+                                        size: 16))),
+                          ]),
+                        ])),
+                const SizedBox(height: 6),
+                Text('AI can be wrong. Check the cited notes.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 11))
+              ])),
+        ]));
+    if (widget.embedded) return content;
+    return Scaffold(
+      resizeToAvoidBottomInset: !widget.compact,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: content,
+    );
   }
 
   Widget _welcome(BuildContext context, List<NoteModel> notes) {
@@ -574,7 +560,7 @@ class _AiPageState extends State<AiPage> {
         'Identify key decisions',
         'Highlight decisions and trade-offs',
         'Identify key decisions and trade-offs',
-        'spark',
+        'target',
         'lav'
       ),
       (
@@ -663,18 +649,19 @@ class _AiPageState extends State<AiPage> {
       Text('Find answers in your notes.', style: theme.textTheme.bodySmall),
       const SizedBox(height: 16),
       Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
-        ChoiceChip(
-            label: const Text('This note'),
-            selected: _scope['kind'] == 'notes' &&
-                widget.initialNoteIds?.length == 1 &&
-                (_scope['ids'] as List? ?? []).length == 1 &&
-                (_scope['ids'] as List).first == widget.initialNoteIds!.first,
-            onSelected: widget.initialNoteIds?.length == 1
-                ? (_) => setState(() => _scope = {
-                      'kind': 'notes',
-                      'ids': widget.initialNoteIds,
-                    })
-                : null),
+        if (widget.initialNoteIds?.length == 1)
+          ChoiceChip(
+              label: const Text('This note'),
+              selected: _scope['kind'] == 'notes' &&
+                  widget.initialNoteIds?.length == 1 &&
+                  (_scope['ids'] as List? ?? []).length == 1 &&
+                  (_scope['ids'] as List).first == widget.initialNoteIds!.first,
+              onSelected: widget.initialNoteIds?.length == 1
+                  ? (_) => setState(() => _scope = {
+                        'kind': 'notes',
+                        'ids': widget.initialNoteIds,
+                      })
+                  : null),
         ChoiceChip(
             label: const Text('Workspace'),
             selected: _scope['kind'] == 'workspace',
@@ -1024,7 +1011,8 @@ class _AiPageState extends State<AiPage> {
                         }
                         if (!snapshot.hasData) {
                           return const Center(
-                              child: CircularProgressIndicator());
+                              child: CircularProgressIndicator(
+                                  semanticsLabel: 'Loading chats'));
                         }
                         final docs = snapshot.data!;
                         if (docs.isEmpty) {
@@ -1054,6 +1042,10 @@ class _AiPageState extends State<AiPage> {
                                                       const Text('Rename chat'),
                                                   content: TextField(
                                                       controller: edit,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                              labelText:
+                                                                  'Chat name'),
                                                       maxLength: 200,
                                                       autofocus: true),
                                                   actions: [
@@ -1079,8 +1071,8 @@ class _AiPageState extends State<AiPage> {
                                               d['id'] as String? ?? '', title!);
                                         } catch (error) {
                                           if (context.mounted) {
-                                            notedToast(context,
-                                                'Couldn’t rename. $error');
+                                            notedToast(
+                                                context, 'Couldn’t rename.');
                                           }
                                         }
                                       }
@@ -1106,8 +1098,8 @@ class _AiPageState extends State<AiPage> {
                                     _toBottom();
                                   } catch (error) {
                                     if (context.mounted) {
-                                      notedToast(context,
-                                          'Couldn’t open chat. $error');
+                                      notedToast(
+                                          context, 'Couldn’t open chat.');
                                     }
                                   }
                                 })

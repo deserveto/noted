@@ -10,11 +10,12 @@ import 'connections_page.dart';
 import '../utils/app_colors.dart';
 import '../utils/document_codec.dart';
 import 'settings_page.dart';
-import 'notes_page.dart';
+import 'study_decks_page.dart';
+import 'workspaces_page.dart';
+import '../viewmodels/settings_viewmodel.dart';
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key, this.onNavigate, this.onConnections});
-  final ValueChanged<String>? onNavigate;
+  const ProfilePage({super.key, this.onConnections});
   final VoidCallback? onConnections;
 
   Widget _buildProfileAvatar(String name, String avatarUrl) {
@@ -81,16 +82,17 @@ class ProfilePage extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
     final max = sorted.isEmpty ? 1 : sorted.first.value;
     final theme = Theme.of(context);
-    void openSettings() => Navigator.push(
-        context, MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
-    void openNotes(String filter) {
-      if (onNavigate != null) {
-        onNavigate!(filter);
-      } else {
-        Navigator.push(context,
-            MaterialPageRoute<void>(builder: (_) => const NotesPage()));
-      }
-    }
+    final aiEnabled = context.watch<SettingsViewModel>().settings.aiEnabled;
+    void open(Widget page) =>
+        Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
+
+    Widget shortcut(String label, String icon, VoidCallback onTap) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: ReferenceIcon(icon),
+          title: Text(label),
+          trailing: const ReferenceIcon('next', size: 16),
+          onTap: onTap,
+        );
 
     Widget section(String text) => Padding(
         padding: const EdgeInsets.only(top: 32, bottom: 12),
@@ -99,149 +101,108 @@ class ProfilePage extends StatelessWidget {
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -.2)));
-    return Scaffold(
-        body: SafeArea(
+    return Material(
+        color: theme.scaffoldBackgroundColor,
+        child: SafeArea(
+            bottom: false,
             child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 128),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
                 children: [
-          Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                  tooltip: 'Settings',
-                  icon: const ReferenceIcon('gear', size: 21),
-                  onPressed: openSettings)),
-          Center(
-              child: Column(children: [
-            _buildProfileAvatar(user?.name ?? '', user?.avatarUrl ?? ''),
-            const SizedBox(height: 16),
-            Text(user?.name ?? '',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -.5)),
-            Text(
-                '${user?.email ?? ''}${user?.fieldOfStudy.isNotEmpty == true ? ' · ${user!.fieldOfStudy}' : ''}',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: theme.hintColor))
-          ])),
-          const SizedBox(height: 28),
-          Container(
-              decoration: BoxDecoration(
-                  border: Border.all(color: theme.dividerColor),
-                  borderRadius: BorderRadius.circular(18)),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: IntrinsicHeight(
-                  child: Row(children: [
-                for (final item in [
-                  ('Notes', notes.length, 'All'),
-                  (
-                    'Favorites',
-                    notes.where((n) => n.isFavorite).length,
-                    'Favorites'
-                  ),
-                  ('Live', notes.where((n) => n.isLive).length, 'Live')
-                ]) ...[
-                  if (item.$1 != 'Notes')
-                    VerticalDivider(width: 1, color: theme.dividerColor),
-                  Expanded(
-                      child: InkWell(
-                          onTap: () => openNotes(item.$3),
-                          child: Column(children: [
-                            Text('${item.$2}',
-                                style: const TextStyle(
-                                    fontSize: 22, fontWeight: FontWeight.w600)),
-                            Text(item.$1,
-                                style: TextStyle(
-                                    fontSize: 12, color: theme.hintColor))
-                          ])))
-                ]
-              ]))),
-          const SizedBox(height: 12),
-          Row(children: [
-            for (final stat in [
-              (month, 'notes this month', 2),
-              (words, 'words written', 3)
-            ]) ...[
-              if (stat.$3 == 3) const SizedBox(width: 12),
-              Expanded(
-                  child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                          color:
-                              AppColors.noteColorFor(theme.brightness, stat.$3),
-                          borderRadius: BorderRadius.circular(18)),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${stat.$1}',
-                                style: const TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.w600)),
-                            Text(stat.$2,
+                  Center(
+                      child: Column(children: [
+                    _buildProfileAvatar(
+                        user?.name ?? '', user?.avatarUrl ?? ''),
+                    const SizedBox(height: 16),
+                    Text(user?.name ?? '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -.5)),
+                    Text(
+                        '${user?.email ?? ''}${user?.fieldOfStudy.isNotEmpty == true ? ' · ${user!.fieldOfStudy}' : ''}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: theme.colorScheme.onSurfaceVariant))
+                  ])),
+                  const SizedBox(height: 20),
+                  shortcut(
+                      'Edit profile', 'edit', () => showEditProfile(context)),
+                  shortcut('Workspaces', 'layers',
+                      () => open(const WorkspacesPage())),
+                  if (aiEnabled)
+                    shortcut('Saved decks', 'cards',
+                        () => open(const StudyDecksPage())),
+                  shortcut(
+                      'Settings', 'gear', () => open(const SettingsPage())),
+                  section('Writing summary'),
+                  Text(
+                      '${pluralize(month, 'note')} this month · ${pluralize(words, 'word')} written',
+                      style: theme.textTheme.bodyMedium),
+                  section('What you write about'),
+                  if (sorted.isEmpty)
+                    Text('Your categories will appear as you add notes.',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurfaceVariant)),
+                  ...sorted.map((cat) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(children: [
+                        Flexible(
+                            flex: 2,
+                            child: Text(cat.key,
+                                style: const TextStyle(fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                    value: cat.value / max,
+                                    minHeight: 8,
+                                    backgroundColor: theme
+                                        .colorScheme.surfaceContainerHighest,
+                                    color: theme.colorScheme.primary))),
+                        const SizedBox(width: 12),
+                        ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 28),
+                            child: Text('${cat.value}',
+                                textAlign: TextAlign.right,
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: .7)))
-                          ])))
-            ]
-          ]),
-          section('What you write about'),
-          if (sorted.isEmpty)
-            Text('Your categories will appear as you add notes.',
-                style: TextStyle(fontSize: 13, color: theme.hintColor)),
-          ...sorted.map((cat) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(children: [
-                SizedBox(
-                    width: 80,
-                    child: Text(cat.key,
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                            value: cat.value / max,
-                            minHeight: 8,
-                            backgroundColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            color: theme.colorScheme.primary))),
-                const SizedBox(width: 12),
-                SizedBox(
-                    width: 20,
-                    child: Text('${cat.value}',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(fontSize: 12, color: theme.hintColor)))
-              ]))),
-          if (collaborators.isNotEmpty) ...[
-            section('Writing with'),
-            InkWell(
-                onTap: onConnections ??
-                    () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                            builder: (_) => const ConnectionsPage())),
-                child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        border: Border.all(color: theme.dividerColor),
-                        borderRadius: BorderRadius.circular(16)),
-                    child: Row(children: [
-                      for (final c in collaborators.take(4))
-                        NotedAvatar(
-                            name: c.otherName(user?.uid ?? ''),
-                            uid: c.otherUserId(user?.uid ?? ''),
-                            size: 32),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: Text(
-                              '${collaborators.map((c) => c.otherName(user?.uid ?? '').split(' ').first).join(', ')} in live notes',
-                              style: TextStyle(
-                                  fontSize: 13, color: theme.hintColor)))
-                    ]))),
-          ],
-        ])));
+                                    color: theme.colorScheme.onSurfaceVariant)))
+                      ]))),
+                  if (collaborators.isNotEmpty) ...[
+                    section('Writing with'),
+                    InkWell(
+                        onTap: onConnections ??
+                            () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                    builder: (_) => const ConnectionsPage())),
+                        child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                                border: Border.all(color: theme.dividerColor),
+                                borderRadius: BorderRadius.circular(16)),
+                            child: Row(children: [
+                              for (final c in collaborators.take(4))
+                                NotedAvatar(
+                                    name: c.otherName(user?.uid ?? ''),
+                                    uid: c.otherUserId(user?.uid ?? ''),
+                                    size: 32),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: Text(
+                                      '${collaborators.map((c) => c.otherName(user?.uid ?? '').split(' ').first).join(', ')} in live notes',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: theme
+                                              .colorScheme.onSurfaceVariant)))
+                            ]))),
+                  ],
+                ])));
   }
 }

@@ -20,12 +20,12 @@ class NoteViewModel extends ChangeNotifier {
   }) : _workspaceRepository = workspaceRepository ?? WorkspaceRepository();
 
   static const defaultCategories = [
-    'Lecture notes',
-    'Mobile Programming',
-    'Database',
-    'Shopping List',
-    'Important',
-    'To-do List',
+    'Personal',
+    'Projects',
+    'Meetings',
+    'Research',
+    'Strategy',
+    'Tasks',
     'For later',
   ];
 

@@ -59,6 +59,15 @@ class DocumentCodec {
     final document = decode(value);
     final output = StringBuffer();
     var line = StringBuffer();
+    String? openList;
+
+    void setList(String? tag) {
+      if (openList == tag) return;
+      if (openList != null) output.write('</$openList>');
+      openList = tag;
+      if (tag != null) output.write('<$tag>');
+    }
+
     for (final op in document.toDelta().toJson()) {
       final insert = op['insert'];
       if (insert is Map) {
@@ -96,12 +105,16 @@ class DocumentCodec {
           }
           if (attributes['blockquote'] == true) tag = 'blockquote';
           final list = attributes['list'];
-          if (list == 'bullet' || list == 'ordered') {
-            final outer = list == 'bullet' ? 'ul' : 'ol';
-            output.write('<$outer><li>$body</li></$outer>');
+          setList(switch (list) {
+            'bullet' => 'ul',
+            'ordered' => 'ol',
+            _ => null,
+          });
+          if (openList != null) {
+            output.write('<li>$body</li>');
           } else if (list == 'checked' || list == 'unchecked') {
             output.write(
-                '<p><input type="checkbox" disabled${list == 'checked' ? ' checked' : ''}> $body</p>');
+                '<p><label><input type="checkbox" disabled${list == 'checked' ? ' checked' : ''}> $body</label></p>');
           } else {
             final alignment = attributes['align'];
             final align = ['center', 'right', 'justify'].contains(alignment)
@@ -114,6 +127,7 @@ class DocumentCodec {
         }
       }
     }
+    setList(null);
     return output.toString();
   }
 }

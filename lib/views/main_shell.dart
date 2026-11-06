@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/note_navigation.dart';
@@ -98,12 +97,11 @@ class _MainShellState extends State<MainShell>
                         NotesPage(onAsk: _ask),
                         AiPage(
                             key: ValueKey(_aiGeneration),
+                            embedded: true,
                             initialScope: _aiScope,
                             initialPrompt: _aiPrompt),
                         ConnectionsPage(active: _index == 3),
-                        ProfilePage(
-                            onNavigate: _library,
-                            onConnections: () => _navigate(3))
+                        ProfilePage(onConnections: () => _navigate(3))
                       ])),
               floatingActionButton: _index == 0 || _index == 1
                   ? FloatingActionButton(
@@ -111,41 +109,49 @@ class _MainShellState extends State<MainShell>
                       onPressed: () => createNote(context),
                       child: const ReferenceIcon('plus', size: 24))
                   : null,
-              bottomNavigationBar: ClipRect(
-                  child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: DecoratedBox(
-                          decoration: BoxDecoration(
-                              border: Border(
-                                  top: BorderSide(color: theme.dividerColor))),
-                          child: NavigationBar(
-                              indicatorColor: Colors.transparent,
-                              selectedIndex:
-                                  visibleIndex < 0 ? 0 : visibleIndex,
-                              onDestinationSelected: (i) =>
-                                  _navigate(destinations[i].index),
-                              backgroundColor: theme.scaffoldBackgroundColor
-                                  .withValues(alpha: .95),
-                              destinations: [
-                                for (final d in destinations)
-                                  NavigationDestination(
-                                      icon: ReferenceIcon(d.icon),
-                                      selectedIcon: Container(
-                                          width: 48,
-                                          height: 28,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                              color: AppColors.noteColorFor(
-                                                  theme.brightness, 2),
-                                              borderRadius:
-                                                  BorderRadius.circular(100)),
-                                          child: ReferenceIcon(d.icon,
-                                              color: theme.brightness ==
-                                                      Brightness.dark
-                                                  ? theme.colorScheme.onSurface
-                                                  : theme.colorScheme.primary)),
-                                      label: d.label)
-                              ])))),
+              bottomNavigationBar: DecoratedBox(
+                  decoration: BoxDecoration(
+                      border:
+                          Border(top: BorderSide(color: theme.dividerColor))),
+                  child: NavigationBar(
+                      indicatorColor: Colors.transparent,
+                      selectedIndex: visibleIndex < 0 ? 0 : visibleIndex,
+                      onDestinationSelected: (i) =>
+                          _navigate(destinations[i].index),
+                      backgroundColor: theme.scaffoldBackgroundColor,
+                      height: 72 +
+                          (MediaQuery.textScalerOf(context).scale(11) - 11)
+                              .clamp(0, 22)
+                              .toDouble(),
+                      labelBehavior:
+                          MediaQuery.textScalerOf(context).scale(11) > 15
+                              ? NavigationDestinationLabelBehavior
+                                  .onlyShowSelected
+                              : NavigationDestinationLabelBehavior.alwaysShow,
+                      destinations: [
+                        for (final d in destinations)
+                          NavigationDestination(
+                              icon: ReferenceIcon(d.icon),
+                              selectedIcon: Container(
+                                  width: 48,
+                                  height: 28,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                      color: AppColors.noteColorFor(
+                                          theme.brightness, 2),
+                                      borderRadius: BorderRadius.circular(100)),
+                                  child: ReferenceIcon(d.icon,
+                                      color: theme.brightness == Brightness.dark
+                                          ? theme.colorScheme.onSurface
+                                          : theme.colorScheme.primary)),
+                              tooltip: d.label,
+                              label: d.label == 'Connections' &&
+                                      MediaQuery.textScalerOf(context)
+                                              .scale(11) >
+                                          15
+                                  ? 'People'
+                                  : d.label)
+                      ])),
             )));
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/noted_ui.dart';
 import '../services/supabase_service.dart';
 import '../widgets/ai_blocks.dart';
 
@@ -50,7 +51,10 @@ class _StudyDecksPageState extends State<StudyDecksPage> {
         builder: (ctx) => AlertDialog(
                 title: const Text('Rename deck'),
                 content: TextField(
-                    controller: controller, maxLength: 200, autofocus: true),
+                    decoration: const InputDecoration(labelText: 'Deck name'),
+                    controller: controller,
+                    maxLength: 200,
+                    autofocus: true),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
@@ -70,8 +74,7 @@ class _StudyDecksPageState extends State<StudyDecksPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not rename deck.')));
+        notedToast(context, 'Could not rename deck.');
       }
     }
   }
@@ -99,58 +102,59 @@ class _StudyDecksPageState extends State<StudyDecksPage> {
       await _load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not delete deck.')));
+        notedToast(context, 'Could not delete deck.');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: const Text('Study decks')),
-      body: _error != null
-          ? Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(_error!),
-              TextButton(onPressed: _load, child: const Text('Try again'))
-            ]))
-          : _decks == null
-              ? const Center(child: CircularProgressIndicator())
-              : _decks!.isEmpty
-                  ? const Center(
-                      child: Text('Saved flashcards will appear here.'))
-                  : ListView(children: [
-                      for (final deck in _decks!)
-                        ListTile(
-                            title:
-                                Text(deck['title'] as String? ?? 'Flashcards'),
-                            subtitle:
-                                Text('${(deck['cards'] as List).length} cards'),
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                    builder: (_) => Scaffold(
-                                        appBar: AppBar(
-                                            title: Text(
-                                                deck['title'] as String? ??
-                                                    'Flashcards')),
-                                        body: Padding(
-                                            padding: const EdgeInsets.all(24),
-                                            child: Flashcards(
-                                                cards: (deck['cards'] as List)
-                                                    .whereType<Map>()
-                                                    .map((e) =>
-                                                        Map<String, dynamic>.from(e))
-                                                    .toList()))))),
-                            trailing: PopupMenuButton<String>(
-                                onSelected: (action) => action == 'rename' ? _rename(deck) : _delete(deck),
-                                itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                          value: 'rename',
-                                          child: Text('Rename')),
-                                      PopupMenuItem(
-                                          value: 'delete',
-                                          child: Text('Delete'))
-                                    ]))
-                    ]));
+      appBar: AppBar(title: const Text('Saved decks')),
+      body: Center(
+          child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 700),
+              child: _error != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: InlineError(_error!, onRetry: _load))
+                  : _decks == null
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                              semanticsLabel: 'Loading saved decks'))
+                      : _decks!.isEmpty
+                          ? const Center(
+                              child: Text('Saved flashcards will appear here.'))
+                          : ListView(children: [
+                              for (final deck in _decks!)
+                                ListTile(
+                                    title: Text(deck['title'] as String? ??
+                                        'Flashcards'),
+                                    subtitle: Text(
+                                        '${(deck['cards'] as List).length} cards'),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                            builder: (_) => Scaffold(
+                                                appBar: AppBar(
+                                                    title: Text(deck['title'] as String? ??
+                                                        'Flashcards')),
+                                                body: Padding(
+                                                    padding: const EdgeInsets.all(
+                                                        24),
+                                                    child: Flashcards(
+                                                        cards: (deck['cards'] as List)
+                                                            .whereType<Map>()
+                                                            .map((e) => Map<String, dynamic>.from(e))
+                                                            .toList()))))),
+                                    trailing: PopupMenuButton<String>(
+                                        onSelected: (action) => action == 'rename' ? _rename(deck) : _delete(deck),
+                                        itemBuilder: (_) => const [
+                                              PopupMenuItem(
+                                                  value: 'rename',
+                                                  child: Text('Rename')),
+                                              PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text('Delete'))
+                                            ]))
+                            ]))));
 }

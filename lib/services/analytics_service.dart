@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// Privacy-first, consent-gated analytics coordinator replacing `firebase_analytics`.
-/// Strictly disabled by default (`enabled == false`) and never transmits events
-/// unless the user explicitly enables `Settings > Privacy > Usage analytics`.
+/// Buffers events in memory when collection is enabled.
 class AnalyticsService {
   AnalyticsService._();
 

@@ -266,7 +266,7 @@ class InlineError extends StatelessWidget {
       child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error.withValues(alpha: .09),
+              color: Theme.of(context).colorScheme.error.withValues(alpha: .04),
               borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
             Expanded(

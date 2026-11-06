@@ -30,15 +30,16 @@ class CustomTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final border = OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: theme.dividerColor));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+      ExcludeSemantics(
+          child: Text(label,
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       const SizedBox(height: 6),
       Semantics(
           label: label,
-          textField: true,
           child: TextFormField(
               controller: controller,
               keyboardType: keyboardType,
